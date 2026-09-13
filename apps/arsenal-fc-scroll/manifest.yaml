@@ -1,0 +1,21 @@
+# GDN app manifest (v2).
+gdn: 1
+id: arsenal-fc-scroll
+version: 0.1.0
+name: Arsenal FC
+author: chris-smith
+description: Arsenal's live score, next fixture, last result, and Premier League table position — red-and-white with a cannon mark, no setup required.
+category: Sports
+entry: app.star
+
+# Panel geometry. Height is 32 (fixed); width up to 384.
+width: 192
+height: 32
+
+# LIVE wants a fresher read than the others; 5 min balances that against
+# hammering the shared free API key (the other pages cache far longer via
+# their own http.get ttl_seconds).
+refresh: 300
+
+# LIVE -> NEXT -> RESULT -> TABLE, rotating.
+pages: [live, next, result, table]

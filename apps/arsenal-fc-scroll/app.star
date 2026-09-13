@@ -1,30 +1,30 @@
-# Arsenal FC — a GDN Starlark app (64x32, 3 pages).
+# Arsenal FC — a GDN Starlark app (192x32 SCROLL, 4 pages).
 #
-# DESIGN. Arsenal red (#EF0107) header band on every page, carrying a small
-# cannon glyph — a nod to "The Gunners" rather than a reproduction of the
-# club crest — so the app identifies itself at a glance with no "ARSENAL"
-# text needed. Black ground everywhere else for contrast. Four pages
-# rotate: LIVE (score + minute while a match is on, else a compact "not
-# live, next up" card), NEXT (upcoming fixture), RESULT (last final score —
-# the header color reads win/draw/loss at a glance), TABLE (current
-# Premier League position). No inputs: this app is Arsenal, always.
+# DESIGN. This is the scroll build's own layout, not the 64px classic build
+# stretched wide — the extra room buys a full identity gutter and room for a
+# label next to every value, not just a bigger number. A solid Arsenal-red
+# gutter runs the full left edge carrying a 2x cannon glyph (the house-kit
+# "rail", wearing the page's state color: brand red on NEXT/TABLE, win/
+# draw/loss on RESULT, amber while LIVE is in play). The remaining content
+# band sits inside the safe zone (x 30-184, well clear of the 6-10px edges
+# neighbor apps play up against) and splits into a tag/meta row plus two
+# zones separated by a hairline: a hero on the left, supporting detail on
+# the right — so nothing has to share a line with something else. Four
+# pages rotate: LIVE, NEXT, RESULT, TABLE — same rotation and same data
+# layer as the classic build.
 #
-# DATA. TheSportsDB (team id 133604, league id 4328) using the shared free
-# "3" test key — no signup, no api-key input. Three known trade-offs,
-# called out where they bite below: the free key's table lookup only
-# returns the top 5 rows, so TABLE has a dedicated "outside the top 5"
-# state; kickoff time is the fixture's own local time (the ground's
-# timezone), not the viewer's, since there's no location input to convert
-# it with; and the free key's livescore feed is shared across every sport
-# and league, so LIVE scans the whole feed for Arsenal's two team ids —
-# refresh is 300s (vs. 1800s for the slower pages) to keep the minute
-# reasonably fresh without hammering the other endpoints.
+# DATA. TheSportsDB (team id 133604, league id 4328), shared free "3" test
+# key — no signup, no api-key input. Same three trade-offs as the classic
+# build: the free table lookup only returns the top 5 rows; kickoff time is
+# the fixture's own local time, not the viewer's; and LIVE scans the whole
+# cross-sport livescore feed for Arsenal's team id. Refresh 300s.
 
 RED = "#EF0107"
 WHITE = "white"
 GRAY = "gray"
 AMBER = "amber"
 GREEN = "green"
+DIVIDER = "#3A3A3A"
 NODATA_BG = "#0B0C12"
 NODATA_TITLE = "#E8B04A"
 NODATA_SUB = "#6A7090"
@@ -32,10 +32,16 @@ NODATA_SUB = "#6A7090"
 TEAM_ID = "133604"
 LEAGUE_ID = "4328"
 
+GUTTER_W = 24
+CONTENT_X0 = 30
+CONTENT_X1 = 184
+ZONE_SPLIT = 128  # vline between hero zone and detail zone
+
 # 8x7 cannon glyph — tapered muzzle, single wheel, a curved tail sweeping
 # to the lower-left (proportions checked against a public-domain cannon
 # icon, freesvg.org/1555194398, CC0/OpenClipart). Original art (the
 # "Gunners" nickname), not a reproduction of the club's crest artwork.
+# Drawn at 2x via bitmap2x() below for this build's wider gutter.
 CANNON = [
     [0, 0, 0, 0, 1, 1, 1, 1],
     [0, 0, 1, 1, 1, 1, 1, 1],
@@ -46,7 +52,7 @@ CANNON = [
     [1, 0, 0, 0, 0, 0, 0, 0],
 ]
 
-HEADLINE_FONTS = ["6x8", "5x7", "4x5"]
+HERO_FONTS = ["16x20", "10x16", "6x8", "5x7"]
 
 MONTHS = {
     "01": "JAN", "02": "FEB", "03": "MAR", "04": "APR",
@@ -55,19 +61,21 @@ MONTHS = {
 }
 
 COMP_SHORT = {
-    "ENGLISH PREMIER LEAGUE": "PL",
-    "UEFA CHAMPIONS LEAGUE": "UCL",
-    "UEFA EUROPA LEAGUE": "UEL",
-    "UEFA EUROPA CONFERENCE LEAGUE": "UECL",
+    "ENGLISH PREMIER LEAGUE": "PREMIER LEAGUE",
+    "UEFA CHAMPIONS LEAGUE": "CHAMPIONS LEAGUE",
+    "UEFA EUROPA LEAGUE": "EUROPA LEAGUE",
+    "UEFA EUROPA CONFERENCE LEAGUE": "CONFERENCE LGE",
     "FA CUP": "FA CUP",
     "EFL CUP": "EFL CUP",
-    "FA COMMUNITY SHIELD": "SHIELD",
+    "FA COMMUNITY SHIELD": "COMMUNITY SHIELD",
     "EMIRATES CUP": "FRIENDLY",
     "CLUB FRIENDLIES": "FRIENDLY",
 }
 
-# Common long club names, shortened to fit a 64px panel; anything unmapped
-# still falls through fit_clip's hard-clip, so no name can overflow.
+# The hero zone (~92px) is narrower than the full panel, so even here the
+# longest club names need shortening — same map as the classic build.
+# Unmapped names still fall through fit_clip's hard-clip, so nothing can
+# overflow, but every current Premier League club is covered.
 CLUB_SHORT = {
     "MANCHESTER UNITED": "MAN UTD",
     "MANCHESTER CITY": "MAN CITY",
@@ -104,7 +112,7 @@ def short_club(name):
 
 def short_comp(name):
     up = name.upper()
-    return COMP_SHORT.get(up, up[:8])
+    return COMP_SHORT.get(up, up)
 
 def fmt_date(date_iso):
     # "2026-09-15" -> "SEP 15"
@@ -131,25 +139,50 @@ def season_str(now):
         return "%d-%d" % (y, y + 1)
     return "%d-%d" % (y - 1, y)
 
-def header(c, tag, accent):
-    """Shared top band: cannon glyph + short page tag, on an accent color."""
-    c.rect(0, 0, c.width - 1, 7, fill = accent)
-    c.bitmap(CANNON, 2, 1, color = "black")
-    c.text(tag, 62, 1, font = "4x5", color = "black", align = "right")
+def bitmap2x(c, matrix, x, y, color):
+    """Draw a 0/1 matrix at 2x — each cell as a 2x2 block, no interpolation."""
+    for row in range(len(matrix)):
+        for col in range(len(matrix[row])):
+            if matrix[row][col]:
+                px = x + col * 2
+                py = y + row * 2
+                c.rect(px, py, px + 1, py + 1, fill = color)
 
-def state_card(c, title, sub, title_color, sub_color, bg):
-    """Two-line fallback card: what happened, what it means (or what to do)."""
+def gutter(c, accent):
+    """The rail: a full-height accent gutter carrying a 2x cannon glyph."""
+    c.rect(0, 0, GUTTER_W - 1, c.height - 1, fill = accent)
+    bitmap2x(c, CANNON, 4, 9, "black")
+
+def tag_meta(c, tag, meta, meta_color):
+    """Top row inside the content band: page tag (left), context (right)."""
+    c.text(tag, CONTENT_X0, 1, font = "4x5", color = GRAY)
+    m, mf = fit_clip(c, meta, ["4x5"], CONTENT_X1 - CONTENT_X0 - 40)
+    c.text(m, CONTENT_X1, 1, font = mf, color = meta_color, align = "right")
+
+def zone_divider(c):
+    c.vline(ZONE_SPLIT, 8, c.height - 9, DIVIDER)
+
+def state_card(c, title, sub, title_color, sub_color, bg, accent):
+    """Full-width fallback card: what happened, what it means (or to do).
+
+    The panel is 32px tall no matter how wide it is, so this borrows the
+    classic build's proven two-line font sizes (6x8 / 4x5) rather than the
+    scroll build's bigger hero ladder — a taller title here would collide
+    with the sub line exactly like it did on the 64px build."""
     c.fill(bg)
-    t, tf = fit_clip(c, title, HEADLINE_FONTS, c.width - 6)
-    c.text(t, c.width // 2, 10, font = tf, color = title_color, align = "center")
-    s, sf = fit_clip(c, sub, ["4x5"], c.width - 6)
-    c.text(s, c.width // 2, 20, font = sf, color = sub_color, align = "center")
+    gutter(c, accent)
+    cx = (CONTENT_X0 + CONTENT_X1) // 2
+    maxw = CONTENT_X1 - CONTENT_X0 - 8
+    t, tf = fit_clip(c, title, ["6x8", "5x7", "4x5"], maxw)
+    c.text(t, cx, 10, font = tf, color = title_color, align = "center")
+    s, sf = fit_clip(c, sub, ["4x5"], maxw)
+    c.text(s, cx, 20, font = sf, color = sub_color, align = "center")
 
 def nodata(c, title, sub):
-    state_card(c, title, sub, NODATA_TITLE, NODATA_SUB, NODATA_BG)
+    state_card(c, title, sub, NODATA_TITLE, NODATA_SUB, NODATA_BG, RED)
 
 def empty_state(c, title, sub):
-    state_card(c, title, sub, GREEN, GRAY, "black")
+    state_card(c, title, sub, GREEN, GRAY, "black", RED)
 
 def fetch_next_fixture():
     resp = http.get(
@@ -213,6 +246,7 @@ def fetch_table_row(now):
             return {
                 "rank": int(row.get("intRank") or 0),
                 "points": int(row.get("intPoints") or 0),
+                "played": int(row.get("intPlayed") or 0),
                 "form": (row.get("strForm") or "").upper(),
             }, "ok"
     # The shared free API key only returns the table's top 5 rows.
@@ -246,6 +280,7 @@ def fetch_live_match():
         minute = progress if status == "HT" else progress + "'"
         return {
             "opponent": short_club(opponent or "TBD"),
+            "home": home,
             "score_for": home_score if home else away_score,
             "score_against": away_score if home else home_score,
             "minute": minute,
@@ -260,29 +295,35 @@ def live(c, ctx):
         nodata(c, "NO DATA", "TRY LATER")
         return
     if state == "not_live":
-        # Not an error or a happy empty — just off-hours. Point at NEXT.
         fx, fx_state = fetch_next_fixture()
-        header(c, "LIVE", RED)
-        c.text("NOT LIVE", c.width // 2, 11, font = "5x7", color = GRAY, align = "center")
+        gutter(c, RED)
+        tag_meta(c, "LIVE", "", GRAY)
+        cx = (CONTENT_X0 + CONTENT_X1) // 2
+        c.text("NOT LIVE", cx, 10, font = "6x8", color = GRAY, align = "center")
         if fx_state == "ok":
-            sub = "NEXT " + fx["date"]
+            sub = "NEXT: " + fx["opponent"] + " " + fx["date"]
         else:
             sub = "CHECK NEXT PAGE"
-        sub, sf = fit_clip(c, sub, ["4x5"], c.width - 4)
-        c.text(sub, c.width // 2, 22, font = sf, color = AMBER, align = "center")
+        sub, sf = fit_clip(c, sub, ["5x7", "4x5"], CONTENT_X1 - CONTENT_X0 - 8)
+        c.text(sub, cx, 21, font = sf, color = AMBER, align = "center")
         return
 
-    c.rect(0, 0, c.width - 1, 7, fill = RED)
-    c.bitmap(CANNON, 2, 1, color = "black")
-    name, _ = fit_clip(c, m["opponent"], ["4x5"], c.width - 12)
-    c.text(name, 62, 1, font = "4x5", color = "black", align = "right")
+    # In play: amber gutter (attention), score in white since it isn't
+    # decided yet, minute + opponent as the supporting detail zone.
+    gutter(c, AMBER)
+    tag_meta(c, "LIVE", m["minute"], AMBER)
+    zone_divider(c)
 
-    # Score is the hero, in white — the match isn't decided yet, so no
-    # win/draw/loss color. The minute below is the "in-play" attention cue.
     score = "%d-%d" % (m["score_for"], m["score_against"])
-    c.text(score, c.width // 2, 9, font = "10x16", color = WHITE, align = "center")
+    score, sf = fit_clip(c, score, HERO_FONTS, ZONE_SPLIT - CONTENT_X0 - 6)
+    c.text(score, CONTENT_X0 + (ZONE_SPLIT - CONTENT_X0) // 2, 8,
+           font = sf, color = WHITE, align = "center")
 
-    c.text(m["minute"], c.width // 2, 26, font = "4x5", color = AMBER, align = "center")
+    zx = ZONE_SPLIT + (CONTENT_X1 - ZONE_SPLIT) // 2
+    name, nf = fit_clip(c, m["opponent"], ["6x8", "5x7", "4x5"], CONTENT_X1 - ZONE_SPLIT - 8)
+    c.text(name, zx, 12, font = nf, color = WHITE, align = "center")
+    ha = "HOME" if m["home"] else "AWAY"
+    c.text(ha, zx, 22, font = "4x5", color = GRAY, align = "center")
 
 def next(c, ctx):
     fx, state = fetch_next_fixture()
@@ -295,19 +336,20 @@ def next(c, ctx):
         empty_state(c, "NO FIXTURE", "TRY LATER")
         return
 
-    header(c, "NEXT", RED)
+    gutter(c, RED)
+    tag_meta(c, "NEXT", fx["comp"], GRAY)
+    zone_divider(c)
 
-    name, font = fit_clip(c, fx["opponent"], HEADLINE_FONTS, c.width - 4)
-    c.text(name, c.width // 2, 9, font = font, color = WHITE, align = "center")
+    name, nf = fit_clip(c, fx["opponent"], HERO_FONTS, ZONE_SPLIT - CONTENT_X0 - 6)
+    c.text(name, CONTENT_X0 + (ZONE_SPLIT - CONTENT_X0) // 2, 8,
+           font = nf, color = WHITE, align = "center")
 
+    zx = ZONE_SPLIT + (CONTENT_X1 - ZONE_SPLIT) // 2
     ha_color = GREEN if fx["home"] else GRAY
     ha_label = "HOME" if fx["home"] else "AWAY"
-    c.text(fx["comp"], 2, 18, font = "4x5", color = GRAY)
-    c.text(ha_label, 62, 18, font = "4x5", color = ha_color, align = "right")
-
-    when = fx["date"] + " " + fx["time"]
-    when, wf = fit_clip(c, when, ["4x5"], c.width - 4)
-    c.text(when, c.width // 2, 25, font = wf, color = AMBER, align = "center")
+    c.text(ha_label, zx, 10, font = "4x5", color = ha_color, align = "center")
+    c.text(fx["date"], zx, 17, font = "4x5", color = WHITE, align = "center")
+    c.text(fx["time"], zx, 24, font = "4x5", color = AMBER, align = "center")
 
 def result(c, ctx):
     r, state = fetch_last_result()
@@ -323,19 +365,22 @@ def result(c, ctx):
     won = r["score_for"] > r["score_against"]
     drew = r["score_for"] == r["score_against"]
     accent = GREEN if won else (AMBER if drew else "red")
+    outcome = "DRAW" if drew else ("WIN" if won else "LOSS")
 
-    c.rect(0, 0, c.width - 1, 7, fill = accent)
-    c.bitmap(CANNON, 2, 1, color = "black")
-    name, _ = fit_clip(c, r["opponent"], ["4x5"], c.width - 12)
-    c.text(name, 62, 1, font = "4x5", color = "black", align = "right")
+    gutter(c, accent)
+    tag_meta(c, "RESULT", r["comp"], GRAY)
+    zone_divider(c)
 
-    # Score is the hero: 10x16 fills rows 9-24, leaving a clean footer band.
     score = "%d-%d" % (r["score_for"], r["score_against"])
-    c.text(score, c.width // 2, 9, font = "10x16", color = accent, align = "center")
+    score, sf = fit_clip(c, score, HERO_FONTS, ZONE_SPLIT - CONTENT_X0 - 6)
+    c.text(score, CONTENT_X0 + (ZONE_SPLIT - CONTENT_X0) // 2, 8,
+           font = sf, color = accent, align = "center")
 
-    foot = r["comp"] + " " + r["date"]
-    foot, ff = fit_clip(c, foot, ["4x5"], c.width - 4)
-    c.text(foot, c.width // 2, 26, font = ff, color = GRAY, align = "center")
+    zx = ZONE_SPLIT + (CONTENT_X1 - ZONE_SPLIT) // 2
+    name, nf = fit_clip(c, r["opponent"], ["6x8", "5x7", "4x5"], CONTENT_X1 - ZONE_SPLIT - 8)
+    c.text(name, zx, 10, font = nf, color = WHITE, align = "center")
+    c.text(outcome, zx, 20, font = "4x5", color = accent, align = "center")
+    c.text(r["date"], zx, 26, font = "4x5", color = GRAY, align = "center")
 
 FORM_COLOR = {"W": GREEN, "D": AMBER, "L": "red"}
 
@@ -348,28 +393,31 @@ def table(c, ctx):
         return
     if state == "empty" or state == "outside_top5":
         # Not "empty" (that's a happy zero) and not a network error either —
-        # the free lookup only covers the top 5 rows, so treat it like the
-        # nodata card: amber, informational.
+        # the free lookup only covers the top 5 rows.
         nodata(c, "NOT RANKED", "TOP 5 ONLY")
         return
 
-    header(c, "EPL", RED)
+    gutter(c, RED)
+    tag_meta(c, "TABLE", "%d PLAYED" % row["played"], GRAY)
+    zone_divider(c)
 
     rank = "#%d" % row["rank"]
-    c.text(rank, c.width // 2, 9, font = "10x16", color = WHITE, align = "center")
+    rank, rf = fit_clip(c, rank, HERO_FONTS, ZONE_SPLIT - CONTENT_X0 - 6)
+    c.text(rank, CONTENT_X0 + (ZONE_SPLIT - CONTENT_X0) // 2, 8,
+           font = rf, color = WHITE, align = "center")
 
-    c.text("%d PTS" % row["points"], c.width // 2, 26, font = "4x5",
-           color = GRAY, align = "center")
+    zx = ZONE_SPLIT + (CONTENT_X1 - ZONE_SPLIT) // 2
+    c.text("%d PTS" % row["points"], zx, 11, font = "5x7", color = WHITE, align = "center")
 
     # Form as small colored squares, most recent match on the right.
     form = row["form"]
     n = len(form)
     if n > 0:
-        sq = 4
+        sq = 5
         gap = 2
         total_w = n * sq + (n - 1) * gap
-        x0 = (c.width - total_w) // 2
+        x0 = zx - total_w // 2
         for i in range(n):
             x = x0 + i * (sq + gap)
             col = FORM_COLOR.get(form[i], GRAY)
-            c.rect(x, 19, x + sq - 1, 19 + sq - 1, fill = col)
+            c.rect(x, 22, x + sq - 1, 22 + sq - 1, fill = col)
