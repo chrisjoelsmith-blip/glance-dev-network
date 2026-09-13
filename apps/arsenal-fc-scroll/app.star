@@ -1,18 +1,25 @@
 # Arsenal FC — a GDN Starlark app (192x32 SCROLL, 4 pages).
 #
-# DESIGN. This is the scroll build's own layout, not the 64px classic build
-# stretched wide — the extra room buys a full identity gutter and room for a
-# label next to every value, not just a bigger number. A solid Arsenal-red
-# gutter runs the full left edge carrying a bold "ARS" wordmark (the
-# house-kit "rail", wearing the page's state color: brand red on
-# NEXT/TABLE, win/draw/loss on RESULT, amber while LIVE is in play). The
-# remaining content
-# band sits inside the safe zone (x 30-184, well clear of the 6-10px edges
-# neighbor apps play up against) and splits into a tag/meta row plus two
-# zones separated by a hairline: a hero on the left, supporting detail on
-# the right — so nothing has to share a line with something else. Four
-# pages rotate: LIVE, NEXT, RESULT, TABLE — same rotation and same data
-# layer as the classic build.
+# DESIGN. Arsenal colors only — red, white, black, and shades of them (no
+# green, no amber/gold): loss is bold red, win/draw/home/live are white or
+# a lighter red tint, never a different hue. This is the scroll build's own
+# layout, not the 64px classic build stretched wide — the extra room buys a
+# real logo badge and a label next to every value, not just a bigger
+# number. A 52px badge zone (wearing the page's state color) runs the full
+# left edge carrying the real Arsenal cannon mark at 48x22. The remaining
+# content band sits inside the safe zone (x 58-184, well clear of
+# the 6-10px edges neighbor apps play up against) and splits into a
+# tag/meta row plus two zones separated by a hairline: a hero on the left,
+# supporting detail on the right — so nothing has to share a line with
+# something else. Four pages rotate: LIVE, NEXT, RESULT, TABLE — same
+# rotation and same data layer as the classic build.
+#
+# LOGO. assets/cannon.png is Arsenal's own 1921-22 club crest — a real,
+# public-domain historical mark (see README.md for provenance and why the
+# modern shield crest doesn't work at this resolution), thresholded to
+# pure black/white at 48x22px — roughly the minimum width where the wheel
+# spokes and barrel stay legible; the 64px classic build only has room for
+# a rougher ~20px rendition of the same source.
 #
 # DATA. TheSportsDB (team id 133604, league id 4328), shared free "3" test
 # key — no signup, no api-key input. Same three trade-offs as the classic
@@ -21,10 +28,9 @@
 # cross-sport livescore feed for Arsenal's team id. Refresh 300s.
 
 RED = "#EF0107"
+RED_LIGHT = "#FF6B61"  # attention/live/draw — a lighter tint of brand red
 WHITE = "white"
 GRAY = "gray"
-AMBER = "amber"
-GREEN = "green"
 DIVIDER = "#3A3A3A"
 NODATA_BG = "#0B0C12"
 NODATA_TITLE = "#E8B04A"
@@ -33,10 +39,12 @@ NODATA_SUB = "#6A7090"
 TEAM_ID = "133604"
 LEAGUE_ID = "4328"
 
-GUTTER_W = 24
-CONTENT_X0 = 30
+GUTTER_W = 52
+CONTENT_X0 = 58
 CONTENT_X1 = 184
-ZONE_SPLIT = 128  # vline between hero zone and detail zone
+ZONE_SPLIT = 134  # vline between hero zone and detail zone
+CANNON_W = 48
+CANNON_H = 22
 
 HERO_FONTS = ["16x20", "10x16", "6x8", "5x7"]
 
@@ -126,9 +134,11 @@ def season_str(now):
     return "%d-%d" % (y - 1, y)
 
 def gutter(c, accent):
-    """The rail: a full-height accent gutter carrying the ARS wordmark."""
+    """The rail: a full-height accent badge zone carrying the cannon mark."""
     c.rect(0, 0, GUTTER_W - 1, c.height - 1, fill = accent)
-    c.text("ARS", GUTTER_W // 2, 10, font = "7x12", color = "black", align = "center")
+    x = (GUTTER_W - CANNON_W) // 2
+    y = (c.height - CANNON_H) // 2
+    c.image("cannon.png", x, y)
 
 def tag_meta(c, tag, meta, meta_color):
     """Top row inside the content band: page tag (left), context (right)."""
@@ -159,7 +169,7 @@ def nodata(c, title, sub):
     state_card(c, title, sub, NODATA_TITLE, NODATA_SUB, NODATA_BG, RED)
 
 def empty_state(c, title, sub):
-    state_card(c, title, sub, GREEN, GRAY, "black", RED)
+    state_card(c, title, sub, WHITE, GRAY, "black", RED)
 
 def fetch_next_fixture():
     resp = http.get(
@@ -282,13 +292,13 @@ def live(c, ctx):
         else:
             sub = "CHECK NEXT PAGE"
         sub, sf = fit_clip(c, sub, ["5x7", "4x5"], CONTENT_X1 - CONTENT_X0 - 8)
-        c.text(sub, cx, 21, font = sf, color = AMBER, align = "center")
+        c.text(sub, cx, 21, font = sf, color = RED_LIGHT, align = "center")
         return
 
     # In play: amber gutter (attention), score in white since it isn't
     # decided yet, minute + opponent as the supporting detail zone.
-    gutter(c, AMBER)
-    tag_meta(c, "LIVE", m["minute"], AMBER)
+    gutter(c, RED_LIGHT)
+    tag_meta(c, "LIVE", m["minute"], RED_LIGHT)
     zone_divider(c)
 
     score = "%d-%d" % (m["score_for"], m["score_against"])
@@ -322,11 +332,11 @@ def next(c, ctx):
            font = nf, color = WHITE, align = "center")
 
     zx = ZONE_SPLIT + (CONTENT_X1 - ZONE_SPLIT) // 2
-    ha_color = GREEN if fx["home"] else GRAY
+    ha_color = WHITE if fx["home"] else GRAY
     ha_label = "HOME" if fx["home"] else "AWAY"
     c.text(ha_label, zx, 10, font = "4x5", color = ha_color, align = "center")
     c.text(fx["date"], zx, 17, font = "4x5", color = WHITE, align = "center")
-    c.text(fx["time"], zx, 24, font = "4x5", color = AMBER, align = "center")
+    c.text(fx["time"], zx, 24, font = "4x5", color = RED_LIGHT, align = "center")
 
 def result(c, ctx):
     r, state = fetch_last_result()
@@ -341,7 +351,7 @@ def result(c, ctx):
 
     won = r["score_for"] > r["score_against"]
     drew = r["score_for"] == r["score_against"]
-    accent = GREEN if won else (AMBER if drew else "red")
+    accent = WHITE if won else (RED_LIGHT if drew else RED)
     outcome = "DRAW" if drew else ("WIN" if won else "LOSS")
 
     gutter(c, accent)
@@ -359,7 +369,7 @@ def result(c, ctx):
     c.text(outcome, zx, 20, font = "4x5", color = accent, align = "center")
     c.text(r["date"], zx, 26, font = "4x5", color = GRAY, align = "center")
 
-FORM_COLOR = {"W": GREEN, "D": AMBER, "L": "red"}
+FORM_COLOR = {"W": WHITE, "D": RED_LIGHT, "L": RED}
 
 def table(c, ctx):
     row, state = fetch_table_row(ctx.now)

@@ -19,3 +19,8 @@ refresh: 300
 
 # LIVE -> NEXT -> RESULT -> TABLE, rotating.
 pages: [live, next, result, table]
+
+# Arsenal's real 1921-22 club crest (public domain — see README.md),
+# pixel-thresholded to 20x9 for the gutter.
+assets:
+  - cannon.png
