@@ -342,19 +342,28 @@ def result(c, ctx):
     won = r["score_for"] > r["score_against"]
     drew = r["score_for"] == r["score_against"]
     accent = WHITE if won else (RED_LIGHT if drew else RED)
+    outcome = "DRAW" if drew else ("WIN" if won else "LOSS")
 
     gutter(c, accent)
-    tag(c, "RESULT")
     cx = (CONTENT_X0 + CONTENT_X1) // 2
     maxw = CONTENT_X1 - CONTENT_X0 - 1
 
-    # Score is the hero.
+    # Five rows, same tight rhythm as NEXT (tag flush at y0, hero capped at
+    # 6x8 to leave room for WIN/LOSS/DRAW as its own line — white/red-tint
+    # alone don't read as clearly as green/red used to, so the word carries
+    # it now): score, outcome, opponent, date.
+    c.text("RESULT", CONTENT_X0, 0, font = "4x5", color = GRAY)
+
     score = "%d-%d" % (r["score_for"], r["score_against"])
-    score, sf = fit_clip(c, score, ["10x16", "6x8"], maxw)
-    c.text(score, cx, 7, font = sf, color = accent, align = "center")
+    score, sf = fit_clip(c, score, ["6x8", "5x7"], maxw)
+    c.text(score, cx, 6, font = sf, color = accent, align = "center")
+
+    c.text(outcome, cx, 15, font = "4x5", color = accent, align = "center")
 
     name, nf = fit_clip(c, r["opponent"], ["4x5"], maxw)
-    c.text(name, cx, 24, font = nf, color = WHITE, align = "center")
+    c.text(name, cx, 21, font = nf, color = WHITE, align = "center")
+
+    c.text(r["date"], cx, 27, font = "4x5", color = GRAY, align = "center")
 
 def table(c, ctx):
     row, state = fetch_table_row(ctx.now)
