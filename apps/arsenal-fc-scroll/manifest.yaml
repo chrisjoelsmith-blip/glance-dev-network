@@ -24,3 +24,15 @@ pages: [live, next, result, table]
 # pixel-thresholded to 48x22 for the badge zone.
 assets:
   - cannon.png
+
+# Kickoff times come from the API in the fixture's own local (UK) time.
+# This converts to standard time in the chosen zone; it does not adjust
+# for daylight saving (see the comment on TZ_OFFSET in app.star).
+inputs:
+  - key: timezone
+    type: choice
+    app_input_type: dropdown
+    label: Kickoff time zone
+    default: "UK"
+    choices: ["UK", "US EASTERN", "US CENTRAL", "US MOUNTAIN", "US PACIFIC", "CENTRAL EUROPE"]
+    help: Converts kickoff time from the ground's local time. Standard time only, not daylight saving.
