@@ -1,9 +1,9 @@
 # Arsenal FC — a GDN Starlark app (64x32, 3 pages).
 #
-# DESIGN. Arsenal red (#EF0107) header band on every page, carrying a small
-# cannon glyph — a nod to "The Gunners" rather than a reproduction of the
-# club crest — so the app identifies itself at a glance with no "ARSENAL"
-# text needed. Black ground everywhere else for contrast. Four pages
+# DESIGN. Arsenal red (#EF0107) header band on every page, carrying a bold
+# "ARS" wordmark — plain text, not a reproduction of the club crest — so the
+# app identifies itself at a glance with no full "ARSENAL" text needed.
+# Black ground everywhere else for contrast. Four pages
 # rotate: LIVE (score + minute while a match is on, else a compact "not
 # live, next up" card), NEXT (upcoming fixture), RESULT (last final score —
 # the header color reads win/draw/loss at a glance), TABLE (current
@@ -31,20 +31,6 @@ NODATA_SUB = "#6A7090"
 
 TEAM_ID = "133604"
 LEAGUE_ID = "4328"
-
-# 8x7 cannon glyph — tapered muzzle, single wheel, a curved tail sweeping
-# to the lower-left (proportions checked against a public-domain cannon
-# icon, freesvg.org/1555194398, CC0/OpenClipart). Original art (the
-# "Gunners" nickname), not a reproduction of the club's crest artwork.
-CANNON = [
-    [0, 0, 0, 0, 1, 1, 1, 1],
-    [0, 0, 1, 1, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1],
-    [0, 1, 1, 1, 1, 1, 1, 1],
-    [0, 1, 1, 0, 0, 0, 0, 0],
-    [1, 1, 0, 0, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0, 0, 0, 0],
-]
 
 HEADLINE_FONTS = ["6x8", "5x7", "4x5"]
 
@@ -132,9 +118,9 @@ def season_str(now):
     return "%d-%d" % (y - 1, y)
 
 def header(c, tag, accent):
-    """Shared top band: cannon glyph + short page tag, on an accent color."""
+    """Shared top band: ARS wordmark + short page tag, on an accent color."""
     c.rect(0, 0, c.width - 1, 7, fill = accent)
-    c.bitmap(CANNON, 2, 1, color = "black")
+    c.text("ARS", 2, 1, font = "5x7", color = "black")
     c.text(tag, 62, 1, font = "4x5", color = "black", align = "right")
 
 def state_card(c, title, sub, title_color, sub_color, bg):
@@ -273,7 +259,7 @@ def live(c, ctx):
         return
 
     c.rect(0, 0, c.width - 1, 7, fill = RED)
-    c.bitmap(CANNON, 2, 1, color = "black")
+    c.text("ARS", 2, 1, font = "5x7", color = "black")
     name, _ = fit_clip(c, m["opponent"], ["4x5"], c.width - 12)
     c.text(name, 62, 1, font = "4x5", color = "black", align = "right")
 
@@ -325,7 +311,7 @@ def result(c, ctx):
     accent = GREEN if won else (AMBER if drew else "red")
 
     c.rect(0, 0, c.width - 1, 7, fill = accent)
-    c.bitmap(CANNON, 2, 1, color = "black")
+    c.text("ARS", 2, 1, font = "5x7", color = "black")
     name, _ = fit_clip(c, r["opponent"], ["4x5"], c.width - 12)
     c.text(name, 62, 1, font = "4x5", color = "black", align = "right")
 

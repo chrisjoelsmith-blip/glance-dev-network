@@ -3,9 +3,10 @@
 # DESIGN. This is the scroll build's own layout, not the 64px classic build
 # stretched wide — the extra room buys a full identity gutter and room for a
 # label next to every value, not just a bigger number. A solid Arsenal-red
-# gutter runs the full left edge carrying a 2x cannon glyph (the house-kit
-# "rail", wearing the page's state color: brand red on NEXT/TABLE, win/
-# draw/loss on RESULT, amber while LIVE is in play). The remaining content
+# gutter runs the full left edge carrying a bold "ARS" wordmark (the
+# house-kit "rail", wearing the page's state color: brand red on
+# NEXT/TABLE, win/draw/loss on RESULT, amber while LIVE is in play). The
+# remaining content
 # band sits inside the safe zone (x 30-184, well clear of the 6-10px edges
 # neighbor apps play up against) and splits into a tag/meta row plus two
 # zones separated by a hairline: a hero on the left, supporting detail on
@@ -36,21 +37,6 @@ GUTTER_W = 24
 CONTENT_X0 = 30
 CONTENT_X1 = 184
 ZONE_SPLIT = 128  # vline between hero zone and detail zone
-
-# 8x7 cannon glyph — tapered muzzle, single wheel, a curved tail sweeping
-# to the lower-left (proportions checked against a public-domain cannon
-# icon, freesvg.org/1555194398, CC0/OpenClipart). Original art (the
-# "Gunners" nickname), not a reproduction of the club's crest artwork.
-# Drawn at 2x via bitmap2x() below for this build's wider gutter.
-CANNON = [
-    [0, 0, 0, 0, 1, 1, 1, 1],
-    [0, 0, 1, 1, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1],
-    [0, 1, 1, 1, 1, 1, 1, 1],
-    [0, 1, 1, 0, 0, 0, 0, 0],
-    [1, 1, 0, 0, 0, 0, 0, 0],
-    [1, 0, 0, 0, 0, 0, 0, 0],
-]
 
 HERO_FONTS = ["16x20", "10x16", "6x8", "5x7"]
 
@@ -139,19 +125,10 @@ def season_str(now):
         return "%d-%d" % (y, y + 1)
     return "%d-%d" % (y - 1, y)
 
-def bitmap2x(c, matrix, x, y, color):
-    """Draw a 0/1 matrix at 2x — each cell as a 2x2 block, no interpolation."""
-    for row in range(len(matrix)):
-        for col in range(len(matrix[row])):
-            if matrix[row][col]:
-                px = x + col * 2
-                py = y + row * 2
-                c.rect(px, py, px + 1, py + 1, fill = color)
-
 def gutter(c, accent):
-    """The rail: a full-height accent gutter carrying a 2x cannon glyph."""
+    """The rail: a full-height accent gutter carrying the ARS wordmark."""
     c.rect(0, 0, GUTTER_W - 1, c.height - 1, fill = accent)
-    bitmap2x(c, CANNON, 4, 9, "black")
+    c.text("ARS", GUTTER_W // 2, 10, font = "7x12", color = "black", align = "center")
 
 def tag_meta(c, tag, meta, meta_color):
     """Top row inside the content band: page tag (left), context (right)."""
