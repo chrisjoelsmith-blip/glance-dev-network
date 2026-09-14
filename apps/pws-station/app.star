@@ -613,9 +613,10 @@ def draw_header(c, title, accent, center_text = ""):
         name = name[0:12]
     c.text(name, 3, 1, font = "5x7", color = "white")
     if center_text != "":
-        # Center of the open header area to the right of the station name.
-        c.text(center_text, 128, 2, font = "4x5", color = MUTED,
-               align = "center")
+        # Observation stamp, right-aligned 10 px in from the edge, same row.
+        # The board refreshes every 30 minutes, so this is the as-of.
+        c.text("UPDATED: " + center_text, c.width - 10, 2, font = "4x5",
+               color = MUTED, align = "right")
     c.line(0, 11, c.width - 1, 11, LINE)
 
 def _err(c, d, accent):

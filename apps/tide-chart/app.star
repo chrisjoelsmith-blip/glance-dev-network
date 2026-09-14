@@ -1,18 +1,13 @@
-# Tide Chart - nearest NOAA tide station within 50 mi of a US zip. (192x32)
+# Tide Chart - one NOAA tide station, picked from the 237-gauge list. (192x32)
 #
 # Flow (all keyless):
-#   1. zippopotam.us     zip -> lat/lon
-#   2. NOAA MDAPI        water-level stations (cached a day)
-#   3. pick nearest      within SEARCH_MI; else "NO DATA AVAILABLE"
-#   4. NOAA datagetter   high/low + hourly tide predictions
+#   1. NOAA MDAPI        the station record (lat/lon, name; cached a day)
+#   2. NOAA datagetter   high/low + hourly tide predictions
 #
-# Water-level stations (~300) stay under GDN's 1MB HTTP body cap. The full
-# tide-prediction directory is ~2MB and gets truncated, so we use waterlevels
-# and skip any station that has no astronomical predictions (Great Lakes).
+# No zip lookup and no time API: the station's zone follows the state in its
+# label, so every panel on the same gauge shares one render.
 
-SEARCH_MI = 50
 
-STATIONS_URL = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json"
 DATA_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
 
 # ---------- helpers ----------
@@ -72,12 +67,6 @@ def fit_font(c, text, options, maxw):
             return f
     return options[len(options) - 1]
 
-def _miles(lat1, lon1, lat2, lon2):
-    mlat = math.radians((lat1 + lat2) / 2.0)
-    dy = (lat2 - lat1) * 69.17
-    dx = (lon2 - lon1) * 69.17 * math.cos(mlat)
-    return math.sqrt(dx * dx + dy * dy)
-
 def _short_name(name):
     # "San Diego, CA" / "GALVESTON, Galveston Channel" -> short header label
     n = str(name or "").strip()
@@ -134,88 +123,52 @@ def _rel(stamp, now):
 
 # ---------- lookups ----------
 
-def _geocode(zip):
-    r = http.get("https://api.zippopotam.us/us/" + zip, ttl_seconds = 86400)
-    if r["status_code"] != 200:
-        return None
-    places = r["json"].get("places", []) if r["json"] else []
-    if not places:
-        return None
-    p = places[0]
-    return {
-        "lat": float(p["latitude"]),
-        "lon": float(p["longitude"]),
-        "city": str(p.get("place name", "")).upper(),
-    }
+# NOAA hands back predictions on the station's own wall clock (lst_ldt) while
+# ctx.now is UTC, so "now" has to be put on the station's clock before the two
+# are compared. The zone follows the state in the station label; the standard
+# offset is minutes east of UTC and the flag says whether US daylight saving
+# applies (2nd Sunday in March 02:00 -> 1st Sunday in November 02:00).
+STATE_ZONE = {
+    "AK": [-540, True], "HI": [-600, False], "AS": [-660, False],
+    "GU": [600, False], "MH": [720, False], "UM": [720, False],
+    "PR": [-240, False], "VI": [-240, False], "BM": [-240, True],
+    "CA": [-480, True], "OR": [-480, True], "WA": [-480, True],
+    "TX": [-360, True], "LA": [-360, True], "MS": [-360, True],
+    "AL": [-360, True],
+}
+# Florida's panhandle gauges keep Central time.
+CENTRAL_IDS = ["8729840", "8729108", "8729210", "8728690"]
 
-def _utc_offset(lat, lon):
-    # Same source world-clock uses; DST already applied.
-    t = http.get(
-        "https://timeapi.io/api/TimeZone/coordinate",
-        params = {"latitude": str(lat), "longitude": str(lon)},
-        ttl_seconds = 3600,
-    )
-    if t["status_code"] != 200 or not t["json"]:
-        return 0.0
-    cur = t["json"].get("currentUtcOffset", {})
-    secs = cur.get("seconds", None)
-    if secs == None:
-        return 0.0
-    return float(secs) / 3600.0
 
-def _nearest_stations(lat, lon):
-    r = http.get(
-        STATIONS_URL,
-        params = {"type": "waterlevels"},
-        ttl_seconds = 86400,
-    )
-    if r["status_code"] != 200 or not r["json"]:
-        return None
+def _zdfc(y, m, d):
+    yy = y - 1 if m <= 2 else y
+    era = (yy if yy >= 0 else yy - 399) // 400
+    yoe = yy - era * 400
+    mp = m - 3 if m > 2 else m + 9
+    doy = (153 * mp + 2) // 5 + d - 1
+    doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+    return era * 146097 + doe - 719468
 
-    stations = r["json"].get("stations", [])
-    if not stations:
-        return []
 
-    # Coarse box first so we only run distance math on nearby candidates.
-    dlat = float(SEARCH_MI) / 69.17 + 0.05
-    # cos(lat) for lon degrees; clamp so high latitudes don't explode.
-    clon = math.cos(math.radians(lat))
-    if clon < 0.2:
-        clon = 0.2
-    dlon = float(SEARCH_MI) / (69.17 * clon) + 0.05
+def _znth_sunday(y, m, n):
+    wd = (_zdfc(y, m, 1) + 4) % 7      # 0 = Sunday; 1970-01-01 was a Thursday
+    return 1 + (7 - wd) % 7 + 7 * (n - 1)
 
-    found = []
-    for s in stations:
-        slat = s.get("lat", None)
-        slon = s.get("lng", None)
-        if slat == None or slon == None:
-            continue
-        slat = float(slat)
-        slon = float(slon)
-        if slat < lat - dlat or slat > lat + dlat:
-            continue
-        if slon < lon - dlon or slon > lon + dlon:
-            continue
-        d = _miles(lat, lon, slat, slon)
-        if d <= float(SEARCH_MI):
-            found.append({
-                "id": str(s.get("id", "")),
-                "name": str(s.get("name", "")),
-                "dist": d,
-            })
 
-    # Selection sort by distance (Starlark has no list.sort / while).
-    nfound = len(found)
-    for i in range(nfound):
-        best = i
-        for j in range(i + 1, nfound):
-            if found[j]["dist"] < found[best]["dist"]:
-                best = j
-        if best != i:
-            tmp = found[i]
-            found[i] = found[best]
-            found[best] = tmp
-    return found
+def station_offset_minutes(state, sid, now):
+    """Minutes east of UTC on the station's clock at the UTC instant `now`."""
+    z = STATE_ZONE.get(str(state).upper(), [-300, True])
+    if str(sid) in CENTRAL_IDS:
+        z = [-360, True]
+    std, dst = z[0], z[1]
+    if not dst:
+        return std
+    t = now.unix // 60
+    y = now.year
+    start = _zdfc(y, 3, _znth_sunday(y, 3, 2)) * 1440 + 120 - std
+    end = _zdfc(y, 11, _znth_sunday(y, 11, 1)) * 1440 + 120 - std - 60
+    return std + 60 if (t >= start and t < end) else std
+
 
 def _predictions(station_id, begin, end, interval):
     r = http.get(
@@ -389,9 +342,8 @@ def _station_id(choice):
     """Pull the NOAA id out of a dropdown entry.
 
     The list shows "CA - San Diego (9410170)" because a bare 9410170 means
-    nothing to anybody. Anything without a numeric id in trailing brackets --
-    including the "Nearest to my zip code" entry, and any leftover blank from
-    before this was a dropdown -- means fall back to the zip lookup.
+    nothing to anybody. Anything without a numeric id in trailing brackets
+    means no station, and the panel says so.
 
     It used to be free text, which is why people pasted station ids off the
     NOAA map and got NOT FOUND: most of what that map shows is a current meter
@@ -401,9 +353,8 @@ def _station_id(choice):
     t = str(choice).strip()
     if t == "":
         return ""
-    # A bare id still works. This was a free-text field until now, so anybody
-    # who already had 8467150 saved keeps the station they chose instead of
-    # being quietly moved to whatever is nearest their zip code.
+    # A bare id still works. This was a free-text field once, so anybody who
+    # already had 8467150 saved keeps the station they chose.
     allnum = True
     for ch in t.elems():
         if ch < "0" or ch > "9":
@@ -427,8 +378,9 @@ def _station_id(choice):
 # Returns {"ok": True, ...} or {"ok": False, "title":..., "sub":...}
 
 def fetch(ctx):
-    zip = _s(ctx, "zip", "")
-    sid = _station_id(_s(ctx, "station", ""))
+    choice = _s(ctx, "station", "")
+    sid = _station_id(choice)
+    state = choice[0:2] if len(choice) > 4 and choice[2:5] == " - " else ""
 
     now = _now_unix(ctx)
     begin = _ymd(now, 0)
@@ -439,47 +391,19 @@ def fetch(ctx):
     lat = 0.0
     lon = 0.0
 
-    if sid:
-        # Explicit station wins — zip is ignored completely.
-        station = _station_by_id(sid)
-        if station == None:
-            return {"ok": False, "title": "BAD STATION", "sub": sid + " NOT FOUND"}
-        lat = station["lat"]
-        lon = station["lon"]
-        hilo = _predictions(station["id"], begin, end, "hilo")
-        if hilo == None or len(hilo) < 1:
-            return {"ok": False, "title": "NO DATA AVAILABLE", "sub": "NO TIDE PREDICTIONS"}
-    else:
-        if not zip:
-            return {"ok": False, "title": "NO LOCATION", "sub": "SET ZIP OR STATION ID"}
+    if not sid:
+        return {"ok": False, "title": "NO STATION", "sub": "PICK A TIDE STATION"}
+    station = _station_by_id(sid)
+    if station == None:
+        return {"ok": False, "title": "BAD STATION", "sub": sid + " NOT FOUND"}
+    lat = station["lat"]
+    lon = station["lon"]
+    hilo = _predictions(station["id"], begin, end, "hilo")
+    if hilo == None or len(hilo) < 1:
+        return {"ok": False, "title": "NO DATA AVAILABLE", "sub": "NO TIDE PREDICTIONS"}
 
-        place = _geocode(zip)
-        if place == None:
-            return {"ok": False, "title": "BAD ZIP", "sub": zip + " NOT FOUND"}
+    off = station_offset_minutes(state, station["id"], ctx.now) / 60.0
 
-        lat = place["lat"]
-        lon = place["lon"]
-
-        cands = _nearest_stations(lat, lon)
-        if cands == None:
-            return {"ok": False, "title": "STATION ERROR", "sub": "NOAA LIST FAILED"}
-        if not cands:
-            return {"ok": False, "title": "NO DATA AVAILABLE", "sub": "NO STATION IN 50 MI"}
-
-        # Prefer the closest station that actually publishes tide predictions.
-        tries = len(cands)
-        if tries > 3:
-            tries = 3
-        for i in range(tries):
-            hilo = _predictions(cands[i]["id"], begin, end, "hilo")
-            if hilo != None and len(hilo) > 0:
-                station = cands[i]
-                break
-
-        if station == None or hilo == None:
-            return {"ok": False, "title": "NO DATA AVAILABLE", "sub": "NO TIDE PREDICTIONS"}
-
-    off = _utc_offset(lat, lon)
 
     hourly = _predictions(station["id"], begin, begin, "h")
     if hourly == None:
