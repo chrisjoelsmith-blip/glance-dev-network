@@ -1,0 +1,101 @@
+# GDN app manifest (v2). This file is the source of truth for how your app is
+# configured and reviewed. Edit it in VS Code or the Studio.
+gdn: 1
+id: fortnite-player-tracker
+version: 0.1.0
+name: Fortnite Player Tracker
+author: Smitty247
+description: >-
+  Lifetime Fortnite Battle Royale stats for you and up to 9 friends — wins,
+  K/D, win rate, kills, and top 10 finishes cycle one big number at a time,
+  one page per player.
+category: Gaming
+entry: app.star
+
+# Panel geometry. Height is 32 (fixed); width up to 384.
+width: 64
+height: 32
+
+# Seconds between re-renders. 60s lets the on-page stat card cycle every
+# minute; the underlying fortnite-api.com call is cached for 5 min via
+# ttl_seconds so this does not multiply API traffic.
+refresh: 60
+
+# 5 pages, 2 tracked players each (you + 9 named friends = 10 players; GDN
+# caps an app at 8 pages, so players are paired up and time-share their page).
+pages: [p1, p2, p3, p4, p5]
+
+# What the client fills in at install time.
+#   type            — the data type: string | number | choice
+#   app_input_type  — the UI widget the client sees. One of:
+#                     free-text | dropdown | selection | checkbox | date | date-past | color
+#                     (optional; if omitted the form infers it from `type`)
+inputs:
+  - key: apikey
+    type: string
+    app_input_type: api-key
+    label: Fortnite-API.com key
+    default: ""
+    help: >-
+      Free key from dash.fortnite-api.com (sign in, Apps > Create App). The
+      stats endpoint requires one — leave blank to preview with demo numbers.
+  - key: name1
+    type: string
+    app_input_type: free-text
+    label: "Player 1 (you) — Epic name"
+    default: "Smitty247"
+    help: Exact Epic display name, case-sensitive.
+  - key: name2
+    type: string
+    app_input_type: free-text
+    label: "Player 2 — Epic name"
+    default: "jpierre1107"
+    help: Leave blank to leave this slot empty.
+  - key: name3
+    type: string
+    app_input_type: free-text
+    label: "Player 3 — Epic name"
+    default: "peachesnherb"
+    help: Leave blank to leave this slot empty.
+  - key: name4
+    type: string
+    app_input_type: free-text
+    label: "Player 4 — Epic name"
+    default: "Bleecher12345"
+    help: Leave blank to leave this slot empty.
+  - key: name5
+    type: string
+    app_input_type: free-text
+    label: "Player 5 — Epic name"
+    default: "Cobeast21"
+    help: Leave blank to leave this slot empty.
+  - key: name6
+    type: string
+    app_input_type: free-text
+    label: "Player 6 — Epic name"
+    default: "pepperminMilk"
+    help: Leave blank to leave this slot empty.
+  - key: name7
+    type: string
+    app_input_type: free-text
+    label: "Player 7 — Epic name"
+    default: "LV0000000"
+    help: Leave blank to leave this slot empty.
+  - key: name8
+    type: string
+    app_input_type: free-text
+    label: "Player 8 — Epic name"
+    default: "FlashierUncle2"
+    help: Leave blank to leave this slot empty.
+  - key: name9
+    type: string
+    app_input_type: free-text
+    label: "Player 9 — Epic name"
+    default: "McSaucey69"
+    help: Leave blank to leave this slot empty.
+  - key: name10
+    type: string
+    app_input_type: free-text
+    label: "Player 10 — Epic name"
+    default: "weathered0"
+    help: Leave blank to leave this slot empty.
