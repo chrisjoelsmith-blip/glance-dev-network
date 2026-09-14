@@ -1,23 +1,24 @@
 # Fortnite Player Tracker — a GDN Starlark app (64x32, 5 pages).
 #
-# DESIGN. You + 9 named friend slots = 10 players, but GDN caps an app at 8
-# pages — so players are paired up, 2 per page (page 1 is you + friend 1,
-# page 2 is friends 2-3, and so on). Every page shares the same skeleton — a
-# tiny gold Victory Royale crown + the current player's Epic name up top (the
-# app's identity mark, since no game logo is used), then one big lifetime
-# stat filling the rest of the panel. Every 60s the page advances one step
-# through a combined cycle of "player A's 5 stats, then player B's 5 stats",
-# so each player on a page gets 5 uninterrupted minutes before it hands off.
-# The accent rail across the very top always wears the current stat's color,
-# so a glance at the rail tells you what the number means before you've read
-# the label underneath it.
+# DESIGN. One page per stat, not per player: WINS, K/D, WIN RATE, KILLS, and
+# TOP 10S each get their own leaderboard, ranking all 8 tracked players
+# (you + 7 friends) highest to lowest. 8 players is a hard ceiling, not a
+# preference — ranking needs one fortnite-api.com lookup per player, and GDN
+# hard-caps an app at 8 http calls per render (enforced by the runtime, not
+# just a guideline), so 8 is the most this design can ever fetch in one go.
+#
+# 8 rows don't fit legibly on a 32px-tall screen at once (~4 fit), so each
+# leaderboard splits into two halves — ranks 1-4, then 5-8 — that swap every
+# render (60s is the platform's minimum refresh, so that's the fastest this
+# can flip). Rank 1 gets the gold Victory Royale crown in place of a number (also
+# the app's identity mark, since no game logo is used); the rest are numbered.
+# The accent rail always wears the current stat's color, matching the design
+# used throughout this app.
 #
 # Data comes from fortnite-api.com's public BR stats endpoint (Epic accounts
-# only, per the human's platform). Accuracy, headshots and "crown wins" were
-# on the original wishlist but got dropped on purpose: no current, legitimate
-# Fortnite API exposes them (Epic pulled that data years ago), and a stat card
-# that always reads zero is worse than one fewer card. What's left — wins,
-# K/D, win rate, kills, top 10s — is all real, live, lifetime data.
+# only). Accuracy, headshots and "crown wins" aren't included — no current,
+# legitimate Fortnite API exposes them. What's shown — wins, K/D, win rate,
+# kills, top 10s — is all real, live, lifetime data.
 
 CROWN = [
     [1, 0, 1, 0, 1],
@@ -27,7 +28,9 @@ CROWN = [
 ]
 CROWN_COLOR = "amber"
 
-# key into the stats dict, on-panel label, rail/hero color for that stat.
+SLOTS = ["name1", "name2", "name3", "name4", "name5", "name6", "name7", "name8"]
+
+# key into the stats dict, on-panel label, and this leaderboard's rail color.
 STATS = [
     ("wins", "WINS", "amber"),
     ("kd", "K/D", "cyan"),
@@ -36,11 +39,11 @@ STATS = [
     ("top10", "TOP 10S", "purple"),
 ]
 
-HERO_FONTS = ["10x16", "9x12", "6x8"]  # the big number, biggest that fits
-MSG_FONTS = ["6x8", "5x7", "4x5"]  # error/empty headline, same ladder pattern
-NAME_MAXW = 53  # 64 - 9 (crown + gap) - 2 (right margin)
-HERO_MAXW = 60  # 64 - 2px margin each side
-MSG_MAXW = 60
+ROW_FONT = "4x5"
+ROW_MAXW = 62  # 64 - 1px margin each side
+ROWS_PER_HALF = 4
+FRAME_SECONDS = 60  # matches manifest `refresh: 60` — one half flips per render
+HEADER_MAXW = 62
 
 def _fit(c, text, fonts, maxw):
     """Largest font in the ladder that fits; last resort if none do."""
@@ -95,8 +98,11 @@ def _stat_value(d, key):
     return _fmt_count(d.get(key, 0))
 
 def fetch_stats(name, apikey):
-    """One http.get per render; cached 5 min so the 60s frame-cycle refresh
-    doesn't multiply API calls."""
+    """One http.get per player; cached 5 min via ttl_seconds. All 5 stat pages
+    read the same underlying per-player call, so once any page has fetched a
+    player fresh, the rest reuse that cache for free — cache hits never count
+    against the runtime's 8-calls-per-render limit, only genuine network
+    fetches do."""
     resp = http.get(
         "https://fortnite-api.com/v2/stats/br/v2",
         params = {"name": name, "accountType": "epic"},
@@ -122,7 +128,8 @@ def fetch_stats(name, apikey):
     return {"state": "offline"}
 
 def make_demo(name):
-    """Deterministic-per-name sample data so each demo page differs a bit."""
+    """Deterministic-per-name sample data so demo rankings are stable across
+    all 5 stat pages, the same as a real leaderboard would be."""
     seed = len(name) * 7 + 13
     return {
         "state": "ok",
@@ -141,87 +148,126 @@ def draw_frame(c, rail_color):
     c.fill("black")
     c.rect(0, 0, c.width - 1, 1, fill = rail_color)
 
-def draw_header(c, name_text):
-    draw_crown(c, 2, 3)
-    label = _clip(c, name_text.upper(), "4x5", NAME_MAXW)
-    c.text(label, 9, 3, font = "4x5", color = "white")
+def collect_rows(ctx, stat_key):
+    """One entry per non-blank player slot: (name, sort_key, display_value).
+    A player whose lookup failed sorts last and shows '--' rather than
+    dropping off the board entirely, so a typo'd name is visible, not silent."""
+    apikey = ctx.inputs.get("apikey", "")
+    demo = not apikey
+    rows = []
+    for slot in SLOTS:
+        name = ctx.inputs.get(slot, "").strip()
+        if not name:
+            continue
+        d = make_demo(name) if demo else fetch_stats(name, apikey)
+        if d["state"] == "ok":
+            raw = d.get(stat_key, 0)
+            rows.append({"name": d.get("name", name), "sort": float(raw), "value": _stat_value(d, stat_key), "ok": True})
+        else:
+            rows.append({"name": name, "sort": -1.0, "value": "--", "ok": False, "err": d["state"]})
+    rows_sorted = sorted(rows, key = lambda r: r["sort"], reverse = True)
+    return rows_sorted, demo
 
-def draw_message(c, rail_color, header_text, msg1, msg2):
-    draw_frame(c, rail_color)
-    draw_header(c, header_text)
-    f1 = _fit(c, msg1, MSG_FONTS, MSG_MAXW)
-    m1 = _clip(c, msg1, f1, MSG_MAXW)
-    c.text(m1, c.width // 2, 13, font = f1, color = rail_color, align = "center")
-    m2 = _clip(c, msg2, "picopixel", MSG_MAXW)
+ERROR_MESSAGES = {
+    "badkey": ("BAD KEY", "CHECK SETTINGS"),
+    "notfound": ("NOT FOUND", "CHECK SPELLING"),
+    "nostats": ("NO MATCHES", "PLAY A GAME"),
+    "offline": ("OFFLINE", "RETRY SOON"),
+}
+
+def _common_error(rows):
+    """Most frequent failure reason across the roster, so one shared cause
+    (a bad key, the API being down) gets one clear message instead of 8
+    identical dashes with no explanation."""
+    counts = {}
+    for r in rows:
+        e = r.get("err", "offline")
+        counts[e] = counts.get(e, 0) + 1
+    best, best_n = "offline", -1
+    for e in ("badkey", "offline", "notfound", "nostats"):
+        n = counts.get(e, 0)
+        if n > best_n:
+            best, best_n = e, n
+    return best
+
+def draw_row(c, y, rank, row):
+    if rank == 1 and row["ok"]:
+        draw_crown(c, 1, y)
+        name_x = 7
+    else:
+        rank_str = str(rank)
+        c.text(rank_str, 1, y, font = ROW_FONT, color = "gray")
+        name_x = 1 + c.text_width(rank_str, font = ROW_FONT) + 2
+    value_col = "white" if row["ok"] else "midgray"
+    value_w = c.text_width(row["value"], font = ROW_FONT)
+    c.text(row["value"], c.width - 1 - value_w, y, font = ROW_FONT, color = value_col)
+    name_maxw = c.width - 1 - value_w - 2 - name_x
+    name_text = _clip(c, row["name"].upper(), ROW_FONT, name_maxw)
+    name_col = "white" if row["ok"] else "midgray"
+    c.text(name_text, name_x, y, font = ROW_FONT, color = name_col)
+
+def draw_empty(c):
+    draw_frame(c, "midgray")
+    draw_crown(c, 2, 3)
+    c.text("NO PLAYERS", 9, 3, font = "4x5", color = "white")
+    c.text("ADD NAMES", c.width // 2, 14, font = "6x8", color = "midgray", align = "center")
+    c.text("IN SETTINGS", c.width // 2, 26, font = "picopixel", color = "gray", align = "center")
+
+def draw_error(c, label, msg1, msg2):
+    draw_frame(c, "amber")
+    draw_crown(c, 2, 3)
+    header = _clip(c, label, "4x5", HEADER_MAXW - 7)
+    c.text(header, 9, 3, font = "4x5", color = "white")
+    f1 = _fit(c, msg1, ["6x8", "5x7", "4x5"], HEADER_MAXW)
+    m1 = _clip(c, msg1, f1, HEADER_MAXW)
+    c.text(m1, c.width // 2, 13, font = f1, color = "amber", align = "center")
+    m2 = _clip(c, msg2, "picopixel", HEADER_MAXW)
     c.text(m2, c.width // 2, 26, font = "picopixel", color = "gray", align = "center")
 
-def draw_stats(c, d, demo, stat_idx):
-    key, label, color = STATS[stat_idx]
+def render_leaderboard(c, ctx, stat_key, label, color):
+    rows, demo = collect_rows(ctx, stat_key)
+    if not rows:
+        draw_empty(c)
+        return
+
+    if not demo and not any([r["ok"] for r in rows]):
+        # Nobody resolved — one shared cause (bad key, API down), so show one
+        # clear explanation instead of a leaderboard of 8 identical dashes.
+        msg1, msg2 = ERROR_MESSAGES[_common_error(rows)]
+        draw_error(c, label, msg1, msg2)
+        return
+
+    n = len(rows)
+    frames = (n + ROWS_PER_HALF - 1) // ROWS_PER_HALF
+    frame = (ctx.now.unix // FRAME_SECONDS) % frames if frames > 1 else 0
+    start = frame * ROWS_PER_HALF
 
     draw_frame(c, color)
-    draw_header(c, d["name"])
+    # The rank numbers (1-4 vs 5-8) already signal there's a second half, so
+    # the header just names the stat — no page-count tag competing for the
+    # same tiny row.
+    header = _clip(c, label + (" DEMO" if demo else ""), "4x5", HEADER_MAXW)
+    c.text(header, 1, 2, font = "4x5", color = color)
 
-    value = _stat_value(d, key)
-    hf = _fit(c, value, HERO_FONTS, HERO_MAXW)
-    value = _clip(c, value, hf, HERO_MAXW)
-    c.text(value, c.width // 2, 9, font = hf, color = color, align = "center")
+    y = 9
+    for i in range(ROWS_PER_HALF):
+        idx = start + i
+        if idx >= n:
+            break
+        draw_row(c, y, idx + 1, rows[idx])
+        y += 6
 
-    label_text = label + (" DEMO" if demo else "")
-    label_text = _clip(c, label_text, "picopixel", MSG_MAXW)
-    c.text(label_text, c.width // 2, 26, font = "picopixel", color = "gray", align = "center")
+def wins(c, ctx):
+    render_leaderboard(c, ctx, "wins", "WINS", "amber")
 
-def render_player(c, ctx, slot_key, stat_idx):
-    name = ctx.inputs.get(slot_key, "").strip()
-    if not name:
-        draw_message(c, "midgray", "SLOT EMPTY", "ADD A NAME", "IN SETTINGS")
-        return
+def kd(c, ctx):
+    render_leaderboard(c, ctx, "kd", "K/D", "cyan")
 
-    apikey = ctx.inputs.get("apikey", "")
-    if not apikey:
-        draw_stats(c, make_demo(name), demo = True, stat_idx = stat_idx)
-        return
+def winrate(c, ctx):
+    render_leaderboard(c, ctx, "winRate", "WIN RATE", "green")
 
-    d = fetch_stats(name, apikey)
-    state = d["state"]
-    if state == "ok":
-        draw_stats(c, d, demo = False, stat_idx = stat_idx)
-    elif state == "notfound":
-        draw_message(c, "amber", name, "NOT FOUND", "CHECK SPELLING")
-    elif state == "badkey":
-        draw_message(c, "amber", name, "BAD KEY", "CHECK SETTINGS")
-    elif state == "nostats":
-        draw_message(c, "green", name, "NO MATCHES", "PLAY A GAME")
-    else:
-        draw_message(c, "amber", name, "OFFLINE", "RETRY SOON")
+def kills(c, ctx):
+    render_leaderboard(c, ctx, "kills", "KILLS", "orange")
 
-# Each page pairs two player slots; a page-scoped clock hands off between
-# them every 5 minutes (5 stats x 60s each), so both players get equal time.
-PAGE_SLOTS = [
-    ["name1", "name2"],
-    ["name3", "name4"],
-    ["name5", "name6"],
-    ["name7", "name8"],
-    ["name9", "name10"],
-]
-
-def render_page(c, ctx, slots):
-    total = len(slots) * len(STATS)
-    frame = (ctx.now.unix // 60) % total
-    slot_idx = frame // len(STATS)
-    stat_idx = frame % len(STATS)
-    render_player(c, ctx, slots[slot_idx], stat_idx)
-
-def p1(c, ctx):
-    render_page(c, ctx, PAGE_SLOTS[0])
-
-def p2(c, ctx):
-    render_page(c, ctx, PAGE_SLOTS[1])
-
-def p3(c, ctx):
-    render_page(c, ctx, PAGE_SLOTS[2])
-
-def p4(c, ctx):
-    render_page(c, ctx, PAGE_SLOTS[3])
-
-def p5(c, ctx):
-    render_page(c, ctx, PAGE_SLOTS[4])
+def top10(c, ctx):
+    render_leaderboard(c, ctx, "top10", "TOP 10S", "purple")

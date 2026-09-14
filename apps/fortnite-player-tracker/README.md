@@ -1,8 +1,13 @@
 # Fortnite Player Tracker
 
-Lifetime Fortnite Battle Royale stats for you and up to 9 friends. Each of the
-5 pages tracks two players and cycles through their WINS, K/D, WIN RATE,
-KILLS, and TOP 10S once a minute.
+Lifetime Fortnite Battle Royale leaderboards for you and 7 friends (8 players
+total). Each of the 5 pages is one stat — WINS, K/D, WIN RATE, KILLS, TOP
+10S — with everyone ranked highest to lowest. Only 4 rows fit legibly at
+once, so each leaderboard swaps between ranks 1-4 and 5-8 once per refresh.
+
+8 players is a hard ceiling, not a preference: ranking needs one
+fortnite-api.com lookup per player, and GDN caps an app at 8 API calls per
+render.
 
 ## Getting an API key
 
@@ -37,6 +42,8 @@ until you add one.
 |---|---|
 | Fortnite-API.com key | Your key from the dashboard above. Optional — blank runs demo data. |
 | Player 1 (you) — Epic name | Your exact Epic display name, case-sensitive. |
-| Player 2–10 — Epic name | Friends' Epic display names. Leave any blank to leave that slot empty. |
+| Player 2–8 — Epic name | Friends' Epic display names. Leave any blank to drop them from every leaderboard. |
 
-Platform is fixed to Epic (PC/mobile) account lookups.
+Platform is fixed to Epic (PC/mobile) account lookups. If a name doesn't
+resolve, that player still shows on the board with `--` instead of a value,
+so a typo is visible rather than silently dropped.
