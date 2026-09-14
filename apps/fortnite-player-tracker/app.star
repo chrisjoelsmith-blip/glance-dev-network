@@ -10,9 +10,9 @@
 # Two more pages carry no data at all, just identity: `intro` is a fixed
 # title screen (llama + battle bus flanking the app name), and
 # `intermission` is an occasional pixel-art break between leaderboards,
-# alternating a big llama and a big battle bus. Both reuse the same two
-# hand-authored bitmaps (scaled up for the break page) rather than shipping
-# separate PNG assets.
+# alternating a big llama and a big battle bus. All four shapes are original
+# hand-authored bitmaps, not traced from any Fortnite reference art or logo —
+# generic silhouettes only, drawn inline rather than shipped as PNG assets.
 #
 # 8 rows don't fit legibly on a 32px-tall screen at once (~4 fit), so each
 # leaderboard splits into two halves — ranks 1-4, then 5-8 — that swap every
@@ -37,8 +37,10 @@ CROWN_COLOR = "amber"
 
 # Generic pixel-art silhouettes — a llama and a flying bus, in the spirit of
 # Fortnite's loot llama and battle bus without reproducing either's specific
-# character design. One small matrix each, reused at 1x on the splash screen
-# and scaled up for the interstitial break page (see _scale_bitmap).
+# character design (original shapes, not traced from any reference art).
+# Compact versions for the splash screen; separately hand-authored bigger,
+# more detailed versions (LLAMA_BIG / BUS_BIG below) for the intermission
+# page's full-screen hero.
 LLAMA = [
     [0, 0, 1, 0, 1, 0, 0],
     [0, 1, 1, 1, 1, 1, 0],
@@ -62,21 +64,48 @@ BUS = [
     [0, 0, 1, 0, 0, 0, 1, 0, 0],
 ]
 
-def _scale_bitmap(matrix, k):
-    """Repeat each cell k x k so one small hand-authored matrix can be drawn
-    small (splash) or big (interstitial hero) without a second asset."""
-    out = []
-    for row in matrix:
-        wide = []
-        for cell in row:
-            for _r in range(k):
-                wide.append(cell)
-        for _r in range(k):
-            out.append(wide)
-    return out
-
-BUS_BIG = _scale_bitmap(BUS, 2)
-LLAMA_BIG = _scale_bitmap(LLAMA, 2)
+# Larger, more detailed versions of the same two silhouettes for the
+# intermission page's full-screen hero (the splash screen keeps the compact
+# ones above — plenty of identity at that size, and there's no room to
+# spare next to the title text).
+LLAMA_BIG = [
+    [0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0],
+]
+BUS_BIG = [
+    [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+]
 
 SLOTS = ["name1", "name2", "name3", "name4", "name5", "name6", "name7", "name8"]
 
@@ -324,18 +353,18 @@ def intro(c, ctx):
     c.text("TRACKER", c.width // 2, 27, font = "picopixel", color = "gray", align = "center")
 
 def intermission(c, ctx):
-    """Occasional break page between the leaderboards: alternates a big llama
-    and a big battle bus (the same small bitmaps, scaled up) with a one-word
-    caption. Swaps every render, same as a leaderboard's two halves."""
+    """Occasional break page between the leaderboards: alternates the big
+    llama and big battle bus silhouettes with a one-word caption. Swaps
+    every render, same as a leaderboard's two halves."""
     c.fill("black")
     frame = (ctx.now.unix // FRAME_SECONDS) % 2
     if frame == 0:
         c.rect(0, 0, c.width - 1, 1, fill = "amber")
-        c.bitmap(LLAMA_BIG, (c.width - 14) // 2, 4, "amber")
+        c.bitmap(LLAMA_BIG, (c.width - len(LLAMA_BIG[0])) // 2, 4, "amber")
         caption = "LOOT UP"
     else:
         c.rect(0, 0, c.width - 1, 1, fill = "skyblue")
-        c.bitmap(BUS_BIG, (c.width - 18) // 2, 4, "skyblue")
+        c.bitmap(BUS_BIG, (c.width - len(BUS_BIG[0])) // 2, 4, "skyblue")
         caption = "GLIDING IN"
     c.text(caption, c.width // 2, 26, font = "picopixel", color = "gray", align = "center")
 
