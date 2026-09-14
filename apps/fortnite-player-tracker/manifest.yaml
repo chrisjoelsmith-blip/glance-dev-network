@@ -49,43 +49,43 @@ inputs:
     type: string
     app_input_type: free-text
     label: "Player 2 — Epic name"
-    default: "jpierre1107"
+    default: "peppermintMilk"
     help: Leave blank to leave this slot empty.
   - key: name3
     type: string
     app_input_type: free-text
     label: "Player 3 — Epic name"
-    default: "peachesnherb"
+    default: "LVooooooo"
     help: Leave blank to leave this slot empty.
   - key: name4
     type: string
     app_input_type: free-text
     label: "Player 4 — Epic name"
-    default: "Bleecher12345"
+    default: "FlashierUncle2"
     help: Leave blank to leave this slot empty.
   - key: name5
     type: string
     app_input_type: free-text
     label: "Player 5 — Epic name"
-    default: "Cobeast21"
+    default: "weathered0"
     help: Leave blank to leave this slot empty.
   - key: name6
     type: string
     app_input_type: free-text
     label: "Player 6 — Epic name"
-    default: "pepperminMilk"
+    default: "jpierre1107"
     help: Leave blank to leave this slot empty.
   - key: name7
     type: string
     app_input_type: free-text
     label: "Player 7 — Epic name"
-    default: "LV0000000"
+    default: "peachesnherb"
     help: Leave blank to leave this slot empty.
   - key: name8
     type: string
     app_input_type: free-text
     label: "Player 8 — Epic name"
-    default: "FlashierUncle2"
+    default: "Bleecher12345"
     help: Leave blank to leave this slot empty.
   - key: name9
     type: string
@@ -97,5 +97,5 @@ inputs:
     type: string
     app_input_type: free-text
     label: "Player 10 — Epic name"
-    default: "weathered0"
+    default: ""
     help: Leave blank to leave this slot empty.
