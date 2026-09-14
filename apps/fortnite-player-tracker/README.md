@@ -1,13 +1,19 @@
 # Fortnite Player Tracker
 
 Lifetime Fortnite Battle Royale leaderboards for you and 7 friends (8 players
-total). Each of the 5 pages is one stat — WINS, K/D, WIN RATE, KILLS, TOP
-10S — with everyone ranked highest to lowest. Only 4 rows fit legibly at
-once, so each leaderboard swaps between ranks 1-4 and 5-8 once per refresh.
+total). Five pages are stats — WINS, K/D, WIN RATE, KILLS, TOP 10S — with
+everyone ranked highest to lowest. Only 4 rows fit legibly at once, so each
+leaderboard swaps between ranks 1-4 and 5-8 once per refresh.
 
 8 players is a hard ceiling, not a preference: ranking needs one
 fortnite-api.com lookup per player, and GDN caps an app at 8 API calls per
 render.
+
+Two more pages are pure pixel art, no data: a fixed **title screen** (a
+llama and a battle bus flanking the app name) and an **intermission** page
+that occasionally breaks up the leaderboards with a big llama or battle bus.
+Both are generic Fortnite-flavored silhouettes, not reproductions of Epic's
+specific character art.
 
 ## Getting an API key
 

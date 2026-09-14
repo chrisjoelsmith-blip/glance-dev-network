@@ -1,4 +1,4 @@
-# Fortnite Player Tracker — a GDN Starlark app (64x32, 5 pages).
+# Fortnite Player Tracker — a GDN Starlark app (64x32, 7 pages).
 #
 # DESIGN. One page per stat, not per player: WINS, K/D, WIN RATE, KILLS, and
 # TOP 10S each get their own leaderboard, ranking all 8 tracked players
@@ -6,6 +6,13 @@
 # preference — ranking needs one fortnite-api.com lookup per player, and GDN
 # hard-caps an app at 8 http calls per render (enforced by the runtime, not
 # just a guideline), so 8 is the most this design can ever fetch in one go.
+#
+# Two more pages carry no data at all, just identity: `intro` is a fixed
+# title screen (llama + battle bus flanking the app name), and
+# `intermission` is an occasional pixel-art break between leaderboards,
+# alternating a big llama and a big battle bus. Both reuse the same two
+# hand-authored bitmaps (scaled up for the break page) rather than shipping
+# separate PNG assets.
 #
 # 8 rows don't fit legibly on a 32px-tall screen at once (~4 fit), so each
 # leaderboard splits into two halves — ranks 1-4, then 5-8 — that swap every
@@ -27,6 +34,49 @@ CROWN = [
     [1, 1, 1, 1, 1],
 ]
 CROWN_COLOR = "amber"
+
+# Generic pixel-art silhouettes — a llama and a flying bus, in the spirit of
+# Fortnite's loot llama and battle bus without reproducing either's specific
+# character design. One small matrix each, reused at 1x on the splash screen
+# and scaled up for the interstitial break page (see _scale_bitmap).
+LLAMA = [
+    [0, 0, 1, 0, 1, 0, 0],
+    [0, 1, 1, 1, 1, 1, 0],
+    [0, 0, 1, 1, 1, 0, 0],
+    [0, 0, 1, 1, 1, 0, 0],
+    [0, 0, 1, 1, 1, 0, 0],
+    [0, 1, 1, 1, 1, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 0, 1],
+]
+BUS = [
+    [0, 0, 0, 1, 1, 1, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 1, 1, 1, 1, 1, 0, 0],
+    [0, 0, 0, 1, 1, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 0, 0],
+    [0, 0, 1, 0, 0, 0, 1, 0, 0],
+]
+
+def _scale_bitmap(matrix, k):
+    """Repeat each cell k x k so one small hand-authored matrix can be drawn
+    small (splash) or big (interstitial hero) without a second asset."""
+    out = []
+    for row in matrix:
+        wide = []
+        for cell in row:
+            for _r in range(k):
+                wide.append(cell)
+        for _r in range(k):
+            out.append(wide)
+    return out
+
+BUS_BIG = _scale_bitmap(BUS, 2)
+LLAMA_BIG = _scale_bitmap(LLAMA, 2)
 
 SLOTS = ["name1", "name2", "name3", "name4", "name5", "name6", "name7", "name8"]
 
@@ -256,6 +306,38 @@ def render_leaderboard(c, ctx, stat_key, label, color):
             break
         draw_row(c, y, idx + 1, rows[idx])
         y += 6
+
+def intro(c, ctx):
+    """Title screen: llama and battle bus flank the app name. Fixed content,
+    no data fetch — this page exists purely so the app identifies itself
+    when it rotates in after some other app on the shared device."""
+    c.fill("black")
+    c.rect(0, 0, c.width - 1, 1, fill = "purple")
+
+    title = "FORTNITE"
+    c.text(title, c.width // 2, 3, font = "6x8", color = "white", align = "center")
+
+    c.bitmap(LLAMA, 6, 12, "amber")
+    c.bitmap(BUS, c.width - 6 - 9, 12, "skyblue")
+
+    c.text("FRIEND STAT", c.width // 2, 22, font = "picopixel", color = "gray", align = "center")
+    c.text("TRACKER", c.width // 2, 27, font = "picopixel", color = "gray", align = "center")
+
+def intermission(c, ctx):
+    """Occasional break page between the leaderboards: alternates a big llama
+    and a big battle bus (the same small bitmaps, scaled up) with a one-word
+    caption. Swaps every render, same as a leaderboard's two halves."""
+    c.fill("black")
+    frame = (ctx.now.unix // FRAME_SECONDS) % 2
+    if frame == 0:
+        c.rect(0, 0, c.width - 1, 1, fill = "amber")
+        c.bitmap(LLAMA_BIG, (c.width - 14) // 2, 4, "amber")
+        caption = "LOOT UP"
+    else:
+        c.rect(0, 0, c.width - 1, 1, fill = "skyblue")
+        c.bitmap(BUS_BIG, (c.width - 18) // 2, 4, "skyblue")
+        caption = "GLIDING IN"
+    c.text(caption, c.width // 2, 26, font = "picopixel", color = "gray", align = "center")
 
 def wins(c, ctx):
     render_leaderboard(c, ctx, "wins", "WINS", "amber")
