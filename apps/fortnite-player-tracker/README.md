@@ -1,19 +1,14 @@
 # Fortnite Player Tracker
 
-Lifetime Fortnite Battle Royale leaderboards for you and 7 friends (8 players
-total). Five pages are stats — WINS, K/D, WIN RATE, KILLS, TOP 10S — with
-everyone ranked highest to lowest. Only 4 rows fit legibly at once, so each
+Lifetime Fortnite Battle Royale leaderboards for up to 8 players. Five
+pages, one per stat — WINS, K/D, WIN RATE, KILLS, TOP 10S — with everyone
+ranked highest to lowest. Only 4 rows fit legibly at once, so each
 leaderboard swaps between ranks 1-4 and 5-8 once per refresh.
 
-8 players is a hard ceiling, not a preference: ranking needs one
-fortnite-api.com lookup per player, and GDN caps an app at 8 API calls per
-render.
-
-Two more pages are pure pixel art, no data: a fixed **title screen** (a
-llama and a battle bus flanking the app name) and an **intermission** page
-that occasionally breaks up the leaderboards with a big llama or battle bus.
-Both are generic Fortnite-flavored silhouettes, not reproductions of Epic's
-specific character art.
+Every name field starts blank: install it and you get an "ADD NAMES" prompt
+until you fill in your own roster. 8 players is a hard ceiling, not a
+preference — ranking needs one fortnite-api.com lookup per player, and GDN
+caps an app at 8 API calls per render.
 
 ## Getting an API key
 
@@ -47,8 +42,7 @@ until you add one.
 | Input | What it is |
 |---|---|
 | Fortnite-API.com key | Your key from the dashboard above. Optional — blank runs demo data. |
-| Player 1 (you) — Epic name | Your exact Epic display name, case-sensitive. |
-| Player 2–8 — Epic name | Friends' Epic display names. Leave any blank to drop them from every leaderboard. |
+| Player 1–8 — Epic name | Exact Epic display names, case-sensitive. All default blank; leave any blank to drop that slot from every leaderboard. |
 
 Platform is fixed to Epic (PC/mobile) account lookups. If a name doesn't
 resolve, that player still shows on the board with `--` instead of a value,
