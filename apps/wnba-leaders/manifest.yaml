@@ -1,0 +1,17 @@
+id: wnba-leaders
+name: WNBA Leaders
+author: cfdmb
+description: Top 3 league leaders by category - Points, Rebounds, Assists, Steals, Blocks, and shooting splits.
+category: Sports
+width: 128
+height: 32
+refresh: 10800
+pages:
+  - points
+  - rebounds
+  - assists
+  - steals
+  - blocks
+  - fgpct
+  - tppct
+  - ftpct

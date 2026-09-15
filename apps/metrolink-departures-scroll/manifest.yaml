@@ -1,0 +1,117 @@
+gdn: 1
+id: metrolink-departures-scroll
+version: 0.1.0
+name: Metrolink Departures
+author: glance-led-dev
+description: The next Metrolink train at your Southern California station as a split-flap countdown, the board of what follows, and every line's on-time status. Live from Metrolink's train tracker, no key.
+category: Transportation
+entry: app.star
+
+width: 192
+height: 32
+# Metrolink's tracker updates every 60 seconds; the fetch ttl matches.
+refresh: 300
+
+pages: [next_train, upcoming, lines]
+
+inputs:
+  - key: station
+    type: choice
+    app_input_type: dropdown
+    label: Station
+    default: "L.A. UNION STATION"
+    help: The Metrolink station you ride from.
+    choices:
+      - "ANAHEIM - ARTIC"
+      - "ANAHEIM CANYON"
+      - "BALDWIN PARK"
+      - "BUENA PARK"
+      - "BURBANK - DOWNTOWN"
+      - "BURBANK AIRPORT - NORTH"
+      - "BURBANK AIRPORT - SOUTH"
+      - "CAL STATE LA"
+      - "CAMARILLO"
+      - "CHATSWORTH"
+      - "CLAREMONT"
+      - "COMMERCE"
+      - "CORONA - NORTH MAIN"
+      - "CORONA - WEST"
+      - "COVINA"
+      - "EL MONTE"
+      - "FONTANA"
+      - "FULLERTON"
+      - "GLENDALE"
+      - "INDUSTRY"
+      - "IRVINE"
+      - "JURUPA VALLEY / PEDLEY"
+      - "L.A. UNION STATION"
+      - "LAGUNA NIGUEL / MISSION VIEJO"
+      - "LANCASTER"
+      - "MONTCLAIR"
+      - "MONTEBELLO / COMMERCE"
+      - "MOORPARK"
+      - "MORENO VALLEY / MARCH FIELD"
+      - "NEWHALL"
+      - "NORTHRIDGE"
+      - "NORWALK / SANTA FE SPRINGS"
+      - "OCEANSIDE"
+      - "ONTARIO - EAST"
+      - "ORANGE"
+      - "OXNARD"
+      - "PALMDALE"
+      - "PERRIS - DOWNTOWN"
+      - "PERRIS - SOUTH"
+      - "POMONA - DOWNTOWN"
+      - "POMONA - NORTH"
+      - "RANCHO CUCAMONGA"
+      - "REDLANDS - DOWNTOWN"
+      - "REDLANDS - ESRI"
+      - "REDLANDS - UNIVERSITY"
+      - "RIALTO"
+      - "RIVERSIDE - DOWNTOWN"
+      - "RIVERSIDE - HUNTER PARK / UCR"
+      - "RIVERSIDE - LA SIERRA"
+      - "SAN BERNARDINO - DOWNTOWN"
+      - "SAN BERNARDINO - TIPPECANOE"
+      - "SAN BERNARDINO DEPOT"
+      - "SAN CLEMENTE"
+      - "SAN CLEMENTE PIER"
+      - "SAN JUAN CAPISTRANO"
+      - "SANTA ANA"
+      - "SANTA CLARITA"
+      - "SIMI VALLEY"
+      - "SUN VALLEY"
+      - "SYLMAR / SAN FERNANDO"
+      - "TUSTIN"
+      - "UPLAND"
+      - "VAN NUYS"
+      - "VENTURA - EAST"
+      - "VIA PRINCESSA"
+      - "VINCENT GRADE / ACTON"
+      - "VISTA CANYON"
+  - key: line
+    type: choice
+    app_input_type: dropdown
+    label: Line
+    default: "ALL LINES"
+    help: Show every train at your station, or only one line. AMTRAK shows the Pacific Surfliner and Coast Starlight trains that stop at Metrolink stations. The line you pick is also highlighted on the line status page.
+    choices:
+      - "ALL LINES"
+      - "ANTELOPE VALLEY LINE"
+      - "VENTURA COUNTY LINE"
+      - "SAN BERNARDINO LINE"
+      - "RIVERSIDE LINE"
+      - "ORANGE COUNTY LINE"
+      - "INLAND EMPIRE-ORANGE COUNTY LINE"
+      - "91/PERRIS VALLEY LINE"
+      - "ARROW"
+      - "AMTRAK"
+  - key: board
+    type: choice
+    app_input_type: dropdown
+    label: Board
+    default: "DEPARTURES"
+    help: DEPARTURES leaves out trains that end their trip at your station. ARRIVALS shows every train pulling in, which is the one you want when you are picking someone up.
+    choices:
+      - "DEPARTURES"
+      - "ARRIVALS"
