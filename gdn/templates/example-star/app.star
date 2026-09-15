@@ -39,7 +39,7 @@ def current(c, ctx):
     c.text(str(wx["temp"]), 4, 12, font = "16x20", color = col)
     c.text("F", 40, 12, font = "7x12", color = "white")
 
-    c.text(wx["cond"], c.width - 4, 12, font = "7x12", color = col, align = "right")
+    c.text(wx["cond"], c.width - 4, 10, font = "7x12", color = col, align = "right")
     c.text("H%d L%d" % (wx["hi"], wx["lo"]), c.width - 4, 24, font = "5x7",
            color = "gray", align = "right")
 

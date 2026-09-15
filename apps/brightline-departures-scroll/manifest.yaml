@@ -1,0 +1,49 @@
+gdn: 1
+id: brightline-departures-scroll
+version: 0.1.0
+name: Brightline Departures
+author: glance-led-dev
+description: The next Brightline train at your Florida station, with its status, track and minutes to go, plus the board of what follows. Live from Brightline's own platform boards, no key.
+category: Transportation
+entry: app.star
+
+width: 192
+height: 32
+# Transit cadence; the fetch ttl matches.
+refresh: 300
+
+pages: [next_train, board]
+
+inputs:
+  - key: station
+    type: choice
+    app_input_type: dropdown
+    label: Station
+    default: "FORT LAUDERDALE"
+    help: The Brightline station you ride from.
+    choices:
+      - "MIAMI"
+      - "AVENTURA"
+      - "FORT LAUDERDALE"
+      - "BOCA RATON"
+      - "WEST PALM BEACH"
+      - "ORLANDO"
+  - key: direction
+    type: choice
+    app_input_type: dropdown
+    label: Direction
+    default: "BOTH"
+    help: Northbound is toward Orlando, southbound toward Miami. BOTH shows whichever train is next.
+    choices:
+      - "BOTH"
+      - "NORTHBOUND"
+      - "SOUTHBOUND"
+  - key: board
+    type: choice
+    app_input_type: dropdown
+    label: Board
+    default: "DEPARTURES"
+    help: Departures shows trains leaving your station; Arrivals shows trains coming in, useful when you are the one picking someone up.
+    choices:
+      - "DEPARTURES"
+      - "ARRIVALS"

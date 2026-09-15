@@ -1,3 +1,14 @@
+PAD = 8  # scroll safe zone: keep the app's outer 8 px clear of content
+HEX = "0123456789abcdef"
+FONT_H = {"4x5": 5, "5x7": 7, "6x8": 8, "10x16": 16}
+TITLE_COLOR = "#E8C25A"
+TIE_COLOR = "#505050"
+FALLBACK_TEAM_COLOR = "#B4B4B4"
+DEMO_TEAMS = {
+    "oklahoma": {"color": "#841617", "alt": "#ffffff"},
+    "texas": {"color": "#bf5700", "alt": "#ffffff"},
+}
+
 def _s(ctx, key, fallback):
     v = ctx.inputs.get(key, fallback)
     if v == None:
@@ -7,54 +18,226 @@ def _s(ctx, key, fallback):
 def _norm(name):
     return str(name).strip().lower()
 
+def _display(s):
+    # Bitmap fonts have no accents or apostrophes; they would be skipped silently.
+    return str(s).replace("é", "e").replace("É", "E").replace("'", "").replace("’", "").upper()
+
 def _abbr(name, teams_map):
     if not name:
         return "TEAM"
-    
+
     name_str = str(name)
     n = _norm(name_str)
-    
+
     if n in teams_map and teams_map[n].get("abbreviation"):
         return teams_map[n]["abbreviation"].upper()
-    
+
     if len(name_str) <= 4:
         return name_str.upper()
-        
+
     parts = name_str.upper().split()
     if len(parts) >= 2:
         return (parts[0][:3] + parts[1][:1]).upper()
-        
+
     return name_str[:4].upper()
 
-def _color(team_name, teams_map, role):
-    if not team_name:
-        return "darkgray" if role != "secondary" else "white"
-    n = _norm(str(team_name))
-    if n in teams_map:
-        col = teams_map[n].get(role)
-        if col and col.startswith("#"):
-            return col
-    return "white" if role == "secondary" else "darkgray"
+def _hex_rgb(col):
+    if col == None:
+        return None
+    s = str(col).strip().lower()
+    if s.startswith("#"):
+        s = s[1:]
+    if len(s) != 6:
+        return None
+    rgb = []
+    for i in [0, 2, 4]:
+        hi = HEX.find(s[i])
+        lo = HEX.find(s[i + 1])
+        if hi < 0 or lo < 0:
+            return None
+        rgb.append(hi * 16 + lo)
+    return rgb
 
-def season_year(ctx):
-    """The football season a date belongs to.
+def _rgb_hex(rgb):
+    out = "#"
+    for v in rgb:
+        out += HEX[v // 16] + HEX[v % 16]
+    return out
 
-    The season spans August to January, so January and February still belong to
-    the year before. Hardcoding it meant the app silently queried a finished
-    season the moment the calendar rolled over."""
-    if ctx.now.month <= 2:
-        return ctx.now.year - 1
-    return ctx.now.year
+def _luma(col):
+    rgb = _hex_rgb(col)
+    if rgb == None:
+        return 0
+    return (299 * rgb[0] + 587 * rgb[1] + 114 * rgb[2]) // 1000
+
+def _too_close(a, b):
+    ra = _hex_rgb(a)
+    rb = _hex_rgb(b)
+    return abs(ra[0] - rb[0]) + abs(ra[1] - rb[1]) + abs(ra[2] - rb[2]) < 80
+
+def _team_color(team_name, teams_map, avoid=None):
+    # CFBD colors are print colors: black and deep navy vanish on an LED. Skip black, lift the
+    # rest to a bright version of the same hue, and fall back to the alternate color when the
+    # primary is black or too close to the other team's color (`avoid`).
+    info = teams_map.get(_norm(team_name), {})
+    options = []
+    for key in ["color", "alt"]:
+        rgb = _hex_rgb(info.get(key))
+        if rgb != None and max(rgb) >= 24:
+            peak = max(rgb)
+            if peak < 210:
+                rgb = [min(255, v * 210 // peak) for v in rgb]
+            options.append(_rgb_hex(rgb))
+    if avoid != None:
+        distinct = [o for o in options + [FALLBACK_TEAM_COLOR] if not _too_close(o, avoid)]
+        if distinct:
+            return distinct[0]
+    return options[0] if options else FALLBACK_TEAM_COLOR
+
+def _ink(fill):
+    return "black" if _luma(fill) > 150 else "white"
+
+def _text_y(font, top, height):
+    return top + (height - FONT_H[font]) // 2
+
+def _fit(c, text, fonts, maxw):
+    # Largest font that fits; if none does, clip the smallest (at a word when cheap) and end with "..".
+    for f in fonts:
+        if c.text_width(text, font=f) <= maxw:
+            return text, f
+    f = fonts[len(fonts) - 1]
+    s = text
+    for _ in range(len(text)):
+        if len(s) <= 1 or c.text_width(s + "..", font=f) <= maxw:
+            break
+        s = s[:len(s) - 1]
+    cut = s.rfind(" ")
+    if cut > 0 and cut * 10 >= len(s) * 7:
+        s = s[:cut]
+    return s.rstrip(" ,-") + "..", f
+
+def _label_value(c, label, value, x, y, align):
+    lw = c.text_width(label, font="4x5")
+    vw = c.text_width(value, font="4x5")
+    total = lw + 4 + vw
+    if align == "right":
+        x = x - total + 1
+    elif align == "center":
+        x = x - total // 2
+    c.text(label, x, y, font="4x5", color="gray")
+    c.text(value, x + lw + 4, y, font="4x5", color="white")
+
+def _message(c, title, detail, color):
+    # Two-line status screen: what happened, then what to do about it.
+    c.text_center(title, 8, font="5x7", color=color)
+    c.text_center(detail, 19, font="4x5", color="gray")
+
+def _tags_width(c, tags):
+    w = 0
+    for t in tags:
+        if t:
+            w = max(w, c.text_width(t, font="4x5"))
+    return w + 3 if w > 0 else 0
+
+def _draw_header(c, titles, label1, label2, col1, col2, full_names):
+    # Team chips pinned to the safe-zone edges, rivalry name centered between them.
+    right = c.width - 1 - PAD
+    font = "4x5" if full_names else "5x7"
+    if full_names:
+        label1, _ = _fit(c, label1, ["4x5"], 56)
+        label2, _ = _fit(c, label2, ["4x5"], 56)
+    w1 = c.text_width(label1, font=font) + 4
+    w2 = c.text_width(label2, font=font) + 4
+    ty = _text_y(font, 0, 9)
+    c.rect(PAD, 0, PAD + w1 - 1, 8, fill=col1)
+    c.text(label1, PAD + 2, ty, font=font, color=_ink(col1))
+    c.rect(right - w2 + 1, 0, right, 8, fill=col2)
+    c.text(label2, right - w2 + 3, ty, font=font, color=_ink(col2))
+
+    # A real rivalry name is clipped if it must be; generic titles step down to shorter wording.
+    x0 = PAD + w1 + 4
+    x1 = right - w2 - 4
+    maxw = x1 - x0 + 1
+    title = titles[len(titles) - 1]
+    for t in titles:
+        if c.text_width(t, font="4x5") <= maxw:
+            title = t
+            break
+    title, tfont = _fit(c, title, ["5x7", "4x5"], maxw)
+    tw = c.text_width(title, font=tfont)
+    c.text(title, x0 + (x1 - x0 + 1 - tw) // 2, _text_y(tfont, 0, 9), font=tfont, color=TITLE_COLOR)
+
+def _draw_series(c, w1, w2, ties, col1, col2, tags1, tags2):
+    # Win totals flank a tug-of-war bar; rank sits at the top of each total, streak at the bottom.
+    right = c.width - 1 - PAD
+    n1 = str(w1)
+    n2 = str(w2)
+    d1 = c.text_width(n1, font="10x16")
+    d2 = c.text_width(n2, font="10x16")
+    c.text(n1, PAD, 10, font="10x16", color="white")
+    c.text(n2, right - d2 + 1, 10, font="10x16", color="white")
+
+    for i in range(2):
+        if tags1[i]:
+            c.text(tags1[i], PAD + d1 + 3, 10 + 11 * i, font="4x5", color="white")
+        if tags2[i]:
+            tw = c.text_width(tags2[i], font="4x5")
+            c.text(tags2[i], right - d2 - 2 - tw, 10 + 11 * i, font="4x5", color="white")
+
+    side = max(d1 + _tags_width(c, tags1), d2 + _tags_width(c, tags2))
+    bx0 = PAD + side + 4
+    bx1 = right - side - 4
+    bw = bx1 - bx0 + 1
+    total = w1 + w2 + ties
+    p1 = (bw * w1 + total // 2) // total
+    pt = (bw * ties + total // 2) // total
+    if ties > 0 and pt == 0:
+        pt = 1
+
+    c.rect(bx0, 13, bx1, 22, fill=col2)
+    if p1 > 0:
+        c.rect(bx0, 13, bx0 + p1 - 1, 22, fill=col1)
+    if pt > 0:
+        c.rect(bx0 + p1, 13, bx0 + p1 + pt - 1, 22, fill=TIE_COLOR)
+    for sx in [bx0 + p1, bx0 + p1 + pt]:
+        if sx > bx0 and sx <= bx1:
+            c.vline(sx, 13, 10, "black")
+
+    # Midfield marker: whichever color crosses it leads the series.
+    mid = bx0 + bw // 2
+    c.vline(mid, 10, 2, "white")
+
+def _draw_first_meeting(c, rank1, rank2):
+    right = c.width - 1 - PAD
+    side = max(_tags_width(c, [rank1]), _tags_width(c, [rank2]))
+    if rank1:
+        c.text(rank1, PAD, 15, font="4x5", color="white")
+    if rank2:
+        c.text(rank2, right - c.text_width(rank2, font="4x5") + 1, 15, font="4x5", color="white")
+    maxw = right - PAD + 1 - 2 * (side + 1)
+    text, font = _fit(c, "FIRST MEETING", ["10x16", "6x8", "5x7"], maxw)
+    c.text_center(text, _text_y(font, 10, 16), font=font, color="white")
+
+def _draw_demo(c, full_names):
+    # No API key yet: a sample Red River screen marked DEMO, so setup and catalog previews
+    # show the real layout instead of an empty prompt.
+    col1 = _team_color("Oklahoma", DEMO_TEAMS)
+    col2 = _team_color("Texas", DEMO_TEAMS, col1)
+    label1 = "OKLAHOMA" if full_names else "OU"
+    label2 = "TEXAS" if full_names else "TEX"
+    _draw_header(c, ["RED RIVER RIVALRY"], label1, label2, col1, col2, full_names)
+    _draw_series(c, 51, 62, 5, col1, col2, ["#24", ""], ["#1", "W2"])
+    _label_value(c, "LAST", "TEX 23-6", PAD, 27, "left")
+    c.text_center("DEMO", 27, font="4x5", color="amber")
+    _label_value(c, "NEXT", "OCT 10", c.width - 1 - PAD, 27, "right")
 
 def get_rivalry_titles():
     url = "https://raw.githubusercontent.com/SlaterDen/ncaaf-rivalries/refs/heads/main/rivalries.json"
-    # A hand-maintained title list that changes a few times a season; a 10s TTL
-    # (left over from testing) re-fetched it on every render of every panel.
     res = http.get(url, ttl_seconds=86400)
-    
+
     if res["status_code"] == 200 and res["json"] != None:
         return res["json"]
-    
+
     # Fallback dictionary if the network fetch fails
     return {
         "oklahoma|texas": "RED RIVER RIVALRY",
@@ -100,13 +283,21 @@ def main(c, ctx):
     apikey = _s(ctx, "apikey", "")
     user_t1 = _s(ctx, "team1", "Oklahoma")
     user_t2 = _s(ctx, "team2", "Texas")
-    custom_title = _s(ctx, "customtitle", "")
     name_mode = _s(ctx, "teamnamelength", "Abbreviations")
 
     if not apikey:
-        c.text_center("ADD CFBD API KEY".upper(), 8, font="5x7", color="red")
-        c.text_center("COLLEGEFOOTBALLDATA.COM", 20, font="4x5", color="gray")
+        _draw_demo(c, name_mode == "Full Name")
         return
+
+    if _norm(user_t1) == _norm(user_t2):
+        _message(c, "PICK TWO DIFFERENT TEAMS", "TEAM 1 AND TEAM 2 MATCH", "amber")
+        return
+
+    # Derive year dynamically, treating Jan/Feb as the previous CFB season
+    now = ctx.now
+    current_year = now.year
+    if now.month <= 2:
+        current_year -= 1
 
     # Fetch dynamic FBS team directory for validation, colors, and abbreviations
     teams_r = cfbd_get("/teams/fbs", {}, apikey)
@@ -118,29 +309,26 @@ def main(c, ctx):
                 teams_map[_norm(school)] = {
                     "abbreviation": t.get("abbreviation"),
                     "color": t.get("color"),
-                    "alt_color": t.get("alt_color")
+                    "alt": t.get("alternateColor")
                 }
 
     # Validate that both user input teams exist in the FBS directory
     t1_norm = _norm(user_t1)
     t2_norm = _norm(user_t2)
-    
+
     if len(teams_map) > 0 and (t1_norm not in teams_map or t2_norm not in teams_map):
-        c.rect(0, 0, c.width - 1, 9, fill="#800000")
-        c.text_center("INVALID TEAM INPUT", 1, font="6x8", color="white")
-        c.text_center("CHECK TEAMS SPELLING", 14, font="5x7", color="yellow")
+        _message(c, "TEAM NOT RECOGNIZED", "PICK BOTH TEAMS AGAIN IN SETTINGS", "amber")
         return
 
     # Fetch dynamic rankings (CFP preferred, AP fallback)
     rankings_map = {}
-    year = season_year(ctx)
-    rank_r = cfbd_get("/rankings", {"year": year}, apikey)
+    rank_r = cfbd_get("/rankings", {"year": current_year}, apikey)
     if rank_r["status_code"] == 200 and rank_r["json"] != None:
         weeks_data = rank_r["json"]
         if len(weeks_data) > 0:
             latest_week = weeks_data[len(weeks_data) - 1]
             polls = latest_week.get("polls", [])
-            
+
             ap_polls = []
             cfp_polls = []
             for p in polls:
@@ -149,7 +337,7 @@ def main(c, ctx):
                     cfp_polls = p.get("ranks", [])
                 elif "ap" in p_type or "associated press" in p_type:
                     ap_polls = p.get("ranks", [])
-            
+
             active_ranks = cfp_polls if len(cfp_polls) > 0 else ap_polls
             for item in active_ranks:
                 school_name = item.get("school", "")
@@ -163,13 +351,15 @@ def main(c, ctx):
     }, apikey)
 
     if r["status_code"] != 200:
-        c.text_center("API ERROR".upper(), 8, font="5x7", color="red")
-        c.text_center(str(r["status_code"]).upper(), 20, font="4x5", color="gray")
+        if r["status_code"] in [401, 403]:
+            _message(c, "CFBD KEY REJECTED", "CHECK THE API KEY IN SETTINGS", "red")
+        else:
+            _message(c, "CFBD UNAVAILABLE", "CHECK KEY OR TRY AGAIN LATER", "red")
         return
 
     data = r["json"]
     if data == None:
-        c.text_center("NO SERIES DATA".upper(), 12, font="5x7", color="amber")
+        _message(c, "NO SERIES DATA", "CFBD HAS NO RECORD FOR THIS PAIR", "amber")
         return
 
     api_t1 = data.get("team1", user_t1)
@@ -195,14 +385,13 @@ def main(c, ctx):
     r1_val = rankings_map.get(_norm(team1))
     r2_val = rankings_map.get(_norm(team2))
 
-    if custom_title:
-        title = custom_title.upper()
+    rivalry = rivalry_title(user_t1, user_t2)
+    if rivalry != None:
+        titles = [_display(rivalry)]
+    elif total > 0:
+        titles = ["ALL-TIME SERIES", "SERIES", "VS"]
     else:
-        title = rivalry_title(user_t1, user_t2)
-        if title == None:
-            title = "TEAM SERIES HISTORY"
-        else:
-            title = title.upper()
+        titles = ["HEAD TO HEAD", "VS"]
 
     games = data.get("games", [])
     if games == None:
@@ -217,7 +406,7 @@ def main(c, ctx):
         if s1 == None or s2 == None:
             s1 = g.get("homeScore")
             s2 = g.get("awayScore")
-            
+
         if s1 != None and s2 != None:
             past_games.append(g)
         else:
@@ -227,7 +416,7 @@ def main(c, ctx):
 
     if next_matchup_date == None:
         sched_r = cfbd_get("/games", {
-            "year": year,
+            "year": current_year,
             "team": team1,
         }, apikey)
         if sched_r["status_code"] == 200 and sched_r["json"] != None:
@@ -249,7 +438,6 @@ def main(c, ctx):
 
     past_games = sorted(past_games, key=lambda g: g.get("season", 0), reverse=True)
 
-    # The bitmap fonts are ASCII: an em dash has no glyph and draws as nothing.
     last_game_str = "-"
     streak_who = ""
     streak_len = 0
@@ -313,139 +501,25 @@ def main(c, ctx):
             else:
                 streak_who = a2
 
-    bar_y0 = 10
-    bar_y1 = 21
+    col1 = _team_color(team1, teams_map)
+    col2 = _team_color(team2, teams_map, col1)
+    full_names = name_mode == "Full Name"
+    label1 = _display(team1) if full_names else a1
+    label2 = _display(team2) if full_names else a2
+    rank1 = "#" + str(r1_val) if r1_val != None else ""
+    rank2 = "#" + str(r2_val) if r2_val != None else ""
+    streak1 = "W" + str(streak_len) if streak_len > 0 and streak_who == a1 else ""
+    streak2 = "W" + str(streak_len) if streak_len > 0 and streak_who == a2 else ""
+    right = c.width - 1 - PAD
+
+    _draw_header(c, titles, label1, label2, col1, col2, full_names)
 
     if total > 0:
-        # ----- STANDARD SERIES LAYOUT -----
-        c.rect(0, 0, c.width - 1, 9, fill="#4D8064")
-        c.text_center(title, 1, font="6x8", color="white")
-
-        bg1 = _color(team1, teams_map, "color")
-        bg2 = _color(team2, teams_map, "color")
-        bar_w = c.width
-
-        w1_px = int(bar_w * float(w1) / float(total) + 0.5)
-        ties_px = int(bar_w * float(ties) / float(total) + 0.5)
-
-        if w1_px < 0: w1_px = 0
-        if ties_px < 0: ties_px = 0
-
-        curr_x = 0
-        if w1_px > 0:
-            c.rect(curr_x, bar_y0, curr_x + w1_px - 1, bar_y1, fill=bg1)
-            curr_x += w1_px
-        if ties_px > 0:
-            c.rect(curr_x, bar_y0, curr_x + ties_px - 1, bar_y1, fill="gray")
-            curr_x += ties_px
-
-        w2_px = bar_w - curr_x
-        if w2_px > 0:
-            c.rect(curr_x, bar_y0, curr_x + w2_px - 1, bar_y1, fill=bg2)
-
-        # Name mode check (Abbreviations vs Full Name limited to 12 chars + win number)
-        if name_mode == "Full Name":
-            t1_trimmed = team1.upper()
-            if len(t1_trimmed) > 12:
-                t1_trimmed = t1_trimmed[:12]
-            t2_trimmed = team2.upper()
-            if len(t2_trimmed) > 12:
-                t2_trimmed = t2_trimmed[:12]
-
-            left_main = t1_trimmed + " " + str(w1)
-            right_main = str(w2) + " " + t2_trimmed
-            main_font = "5x7"
-            text_y = 12
-        else:
-            left_main = (a1 + " " + str(w1)).upper()
-            right_main = (str(w2) + " " + a2).upper()
-            main_font = "7x10"
-            text_y = 11
-
-        left_x = 12 if r1_val != None else 4
-        right_x_offset = 12 if r2_val != None else 4
-
-        c.text(left_main, left_x, text_y, font=main_font, color="white")
-        c.text(right_main, c.width - right_x_offset, text_y, font=main_font, color="white", align="right")
-
-        if r1_val != None:
-            c.text(str(r1_val), 1, text_y, font="4x5", color="white")
-        if r2_val != None:
-            c.text(str(r2_val), c.width - 2, text_y, font="4x5", color="white", align="right")
-
-        c.rect(0, 22, c.width - 1, 22, fill="gray")
-
-        # ----- 3-SECTION BOTTOM GRID (LAST | STREAK | NEXT) -----
-        bg_last = _color(team1, teams_map, "color")
-        if len(past_games) > 0:
-            g0 = past_games[0]
-            s1_g0 = _safe_int(g0.get("team1Score", g0.get("homeScore")))
-            s2_g0 = _safe_int(g0.get("team2Score", g0.get("awayScore")))
-            if s1_g0 != None and s2_g0 != None:
-                g_t1 = _norm(g0.get("team1", g0.get("homeTeam", "")))
-                if s1_g0 > s2_g0:
-                    bg_last = _color(team1 if _norm(team1) in g_t1 else team2, teams_map, "color")
-                elif s2_g0 > s1_g0:
-                    bg_last = _color(team2 if _norm(team1) in g_t1 else team1, teams_map, "color")
-
-        bg_streak = "gray"
-        if streak_len > 0:
-            if streak_who == a1:
-                bg_streak = _color(team1, teams_map, "color")
-            elif streak_who == a2:
-                bg_streak = _color(team2, teams_map, "color")
-
-        c.rect(0, 23, 80, 31, fill=bg_last)
-        c.rect(80, 23, 80, 31, fill="gray")
-        c.rect(81, 23, 114, 31, fill=bg_streak)
-        c.rect(114, 23, 114, 31, fill="gray")
-        c.rect(115, 23, c.width - 1, 31, fill="#1c1c1c")
-
-        last_str = "LAST: " + last_game_str.upper()
-        streak_str = (streak_who + ":" + str(streak_len)).upper() if streak_len > 0 else "STR: -"
-        next_str = "NEXT: " + next_matchup_date.upper()
-
-        c.text(last_str, 3, 24, font="4x7", color="white")
-        c.text(streak_str, 83, 24, font="4x7", color="white")
-        c.text(next_str, 118, 24, font="4x7", color="white")
-
+        _draw_series(c, w1, w2, ties, col1, col2, [rank1, streak1], [rank2, streak2])
+        _label_value(c, "LAST", last_game_str.upper(), PAD, 27, "left")
+        if ties > 0:
+            _label_value(c, "TIES", str(ties), c.width // 2, 27, "center")
+        _label_value(c, "NEXT", next_matchup_date.upper(), right, 27, "right")
     else:
-        # ----- FIRST MEETING LAYOUT -----
-        c.rect(0, 0, c.width - 1, 9, fill="#4D8064")
-        c.text_center("FIRST ALL-TIME MEETING", 1, font="6x8", color="white")
-
-        c1_hex = _color(team1, teams_map, "color")
-        c2_hex = _color(team2, teams_map, "color")
-        c.gradient_rect(0, bar_y0, c.width - 1, 32, c1_hex, c2_hex)
-
-        if name_mode == "Full Name":
-            t1_trimmed = team1.upper()
-            if len(t1_trimmed) > 12:
-                t1_trimmed = t1_trimmed[:12]
-            t2_trimmed = team2.upper()
-            if len(t2_trimmed) > 12:
-                t2_trimmed = t2_trimmed[:12]
-
-            left_main = t1_trimmed
-            right_main = t2_trimmed
-            main_font = "5x7"
-            text_y = 12
-        else:
-            left_main = team1.upper()
-            right_main = team2.upper()
-            main_font = "6x8"
-            text_y = 11
-
-        left_x = 12 if r1_val != None else 4
-        right_x_offset = 12 if r2_val != None else 4
-
-        c.text(left_main, left_x, text_y, font=main_font, color="white")
-        c.text(right_main, c.width - right_x_offset, text_y, font=main_font, color="white", align="right")
-
-        if r1_val != None:
-            c.text(str(r1_val), 1, text_y, font="4x5", color="white")
-        if r2_val != None:
-            c.text(str(r2_val), c.width - 2, text_y, font="4x5", color="white", align="right")
-
-        line = "NEXT: " + next_matchup_date.upper()
-        c.text_center(line, 22, font="6x8", color="white")
+        _draw_first_meeting(c, rank1, rank2)
+        _label_value(c, "NEXT", next_matchup_date.upper(), c.width // 2, 27, "center")

@@ -1,0 +1,82 @@
+gdn: 1
+id: fantasy-football-news
+version: 0.1.0
+name: Fantasy Football News
+author: glance-led-dev
+description: Live NFL player news sorted at a glance - OUT, QUESTIONABLE, CLEARED, SIGNED, BOOM, BUST - plus the waiver wire's hottest adds or drops with rostered percentage. No key needed.
+category: Sports
+entry: app.star
+
+width: 64
+height: 32
+# 60 s because each page rotates one story / one player per minute. The
+# feeds themselves are cached far longer: news 600 s, trending 1800 s,
+# player records 6 h.
+refresh: 60
+
+pages: [news, wire]
+
+inputs:
+  - key: follow
+    type: choice
+    app_input_type: dropdown
+    label: News for
+    default: "ALL NFL"
+    help: ALL NFL shows the latest player updates league-wide from RotoWire. Pick a team to follow only that team's fantasy players (QB, RB, WR, TE, K), with their injury status, from ESPN.
+    choices:
+      - "ALL NFL"
+      - "ARIZONA CARDINALS"
+      - "ATLANTA FALCONS"
+      - "BALTIMORE RAVENS"
+      - "BUFFALO BILLS"
+      - "CAROLINA PANTHERS"
+      - "CHICAGO BEARS"
+      - "CINCINNATI BENGALS"
+      - "CLEVELAND BROWNS"
+      - "DALLAS COWBOYS"
+      - "DENVER BRONCOS"
+      - "DETROIT LIONS"
+      - "GREEN BAY PACKERS"
+      - "HOUSTON TEXANS"
+      - "INDIANAPOLIS COLTS"
+      - "JACKSONVILLE JAGUARS"
+      - "KANSAS CITY CHIEFS"
+      - "LAS VEGAS RAIDERS"
+      - "LOS ANGELES CHARGERS"
+      - "LOS ANGELES RAMS"
+      - "MIAMI DOLPHINS"
+      - "MINNESOTA VIKINGS"
+      - "NEW ENGLAND PATRIOTS"
+      - "NEW ORLEANS SAINTS"
+      - "NEW YORK GIANTS"
+      - "NEW YORK JETS"
+      - "PHILADELPHIA EAGLES"
+      - "PITTSBURGH STEELERS"
+      - "SAN FRANCISCO 49ERS"
+      - "SEATTLE SEAHAWKS"
+      - "TAMPA BAY BUCCANEERS"
+      - "TENNESSEE TITANS"
+      - "WASHINGTON COMMANDERS"
+  - key: wire
+    type: choice
+    app_input_type: dropdown
+    label: Waiver wire
+    default: "ADDS"
+    help: ADDS shows the players fantasy managers are grabbing most in the last 24 hours; DROPS shows who they are cutting. From Sleeper.
+    choices:
+      - "ADDS"
+      - "DROPS"
+  - key: position
+    type: choice
+    app_input_type: dropdown
+    label: Waiver wire position
+    default: "ALL"
+    help: Narrow the waiver wire page to one position. The news page is not filtered by this.
+    choices:
+      - "ALL"
+      - "QB"
+      - "RB"
+      - "WR"
+      - "TE"
+      - "K"
+      - "DEF"

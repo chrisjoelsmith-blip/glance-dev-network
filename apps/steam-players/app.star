@@ -64,12 +64,48 @@ KNOWN_NAMES = {
 
 STEAM_BLUE = "#66C0F4"
 STEAM_DIM = "#4B619B"
-OK_GREEN = "#3DDC82"
 PRICE_GOLD = "#FFE566"
 REVIEW_TEAL = "#5EEAD4"
 REVIEW_NEG = "#FF6B6B"
 WARN = "#FFB84D"
 MUTED = "#8B9BB0"
+BG = "#0B141C"
+RULE = "#1B2838"
+# Scroll safe zone: nothing within 8 px of either edge so neighbours never merge.
+PAD = 8
+# Steam mark, 13x13: a blue disc, then the piston (big joint, arm, small joint)
+# knocked out of it in the background colour.
+STEAM_DISC = [
+    [0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+]
+STEAM_PISTON = [
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+]
+LOGO = 13
 MAX_GAMES = 4
 ROTATE_EVERY = 120
 
@@ -447,13 +483,13 @@ def games(c, ctx):
     depended on the wall clock. This page answers "how are my games doing"
     without waiting, and DETAIL still gives each of them the full card.
 
-    Only the player count is fetched here: one request per game, so four games
-    cost four of the eight requests an app gets per render. Pulling the store
-    and review data for all four as well would blow that limit and the page
-    would fail outright."""
+    Four games cost eight requests (store name + player count each), which is
+    the per-render cap. Store appdetails is cached 24h and shared with DETAIL,
+    so later refreshes only pay for player counts. Reviews stay off this page
+    so the first uncached render still fits."""
     picks = games_list(ctx)
     n = len(picks)
-    c.fill("#0B141C")
+    c.fill(BG)
     if n == 0:
         c.text("NO APPIDS SET", c.width // 2, 8, font = "5x7", color = WARN,
                align = "center")
@@ -461,33 +497,48 @@ def games(c, ctx):
                color = MUTED, align = "center")
         return
 
-    # Four rows of eight fill the panel exactly; fewer are centred so two games
-    # do not sit in the top half with dead space under them.
-    rows = n if n < 4 else 4
-    top = (32 - rows * 8) // 2 + 1
+    rows = n if n < MAX_GAMES else MAX_GAMES
+    fetched = []
     for i in range(rows):
         appid = picks[i]
-        y = top + i * 8
+        store = fetch_store(appid)
         count = fetch_players(appid)
+        fetched.append([game_name(appid, store["name"]), count])
+
+    # Identity column: the Steam mark over the wordmark.
+    col_w = c.text_width("STEAM", "5x7")
+    logo_x = PAD + (col_w - LOGO) // 2
+    c.bitmap(STEAM_DISC, logo_x, 5, STEAM_BLUE)
+    c.bitmap(STEAM_PISTON, logo_x, 5, BG)
+    c.text("STEAM", PAD, 20, font = "5x7", color = STEAM_BLUE)
+    rail = PAD + col_w + 4
+    c.line(rail, 3, rail, 28, RULE)
+
+    # Stacked rows, 8 px each; fewer than four are centred on the panel.
+    top = (32 - rows * 8) // 2 + 1
+    x = rail + 5
+    right = c.width - PAD
+    for i in range(rows):
+        name = fetched[i][0]
+        count = fetched[i][1]
+        y = top + i * 8
+
+        # Right side first: draw the value, then fit the name into what is left.
         if count != None:
             num = format_count(count)
-            cw = c.text_width(num, "4x7")
-            c.text(num, c.width - 2, y, font = "4x7", color = OK_GREEN,
-                   align = "right")
+            num_color = "white"
         else:
             # One game the API would not answer for is not a broken panel: the
             # row says so and the others still report.
             num = "--"
-            cw = c.text_width(num, "4x7")
-            c.text(num, c.width - 2, y, font = "4x7", color = WARN,
-                   align = "right")
-        name = game_name(appid, None)
-        if name == None or str(name).strip() == "":
-            name = appid
-        # fit_clip returns [font, text], not a string. Drawing the pair
-        # straight out printed "'47', 'COUNTER-STRIKE 2'" across the row.
-        fitted = fit_clip(c, name, c.width - 8 - cw, ["4x7", "4x5"])
-        c.text(fitted[1], 2, y, font = fitted[0], color = STEAM_BLUE)
+            num_color = WARN
+        cw = c.text_width(num, "4x7")
+        c.text(num, right, y, font = "4x7", color = num_color, align = "right")
+
+        # fit_clip returns [font, text], not a string.
+        fitted = fit_clip(c, name, right - cw - 6 - x, ["4x7", "4x5"])
+        name_y = y + 1 if fitted[0] == "4x5" else y
+        c.text(fitted[1], x, name_y, font = fitted[0], color = STEAM_BLUE)
 
 def detail(c, ctx):
     picks = games_list(ctx)
@@ -500,101 +551,47 @@ def detail(c, ctx):
     count = fetch_players(appid)
     review_pct = fetch_review_pct(appid)
 
-    c.fill("#0B141C")
+    c.fill(BG)
+    right = c.width - PAD
 
-    # Row 1 — brand left, genre/year in the open mid, player count right.
-    c.text("STEAM", 2, 1, font = "5x7", color = STEAM_BLUE)
-    left_edge = 2 + c.text_width("STEAM", "5x7") + 5
-    if total > 1:
-        slot_tag = "#" + str(slot + 1) + "/" + str(total)
-        c.text(slot_tag, left_edge, 2, font = "4x5", color = STEAM_DIM)
-        left_edge = left_edge + c.text_width(slot_tag, "4x5") + 5
-
-    right_edge = c.width - 2
+    # Hero zone — the live player count, labelled; amber dashes when Steam is down.
     if count != None:
-        num = format_count(count)
-        play = "PLAYING"
-        play_w = c.text_width(play, "4x5")
-        c.text(play, right_edge, 2, font = "4x5", color = STEAM_DIM, align = "right")
-        c.text(num, right_edge - play_w - 3, 1, font = "6x8", color = OK_GREEN, align = "right")
-        right_edge = right_edge - play_w - 3 - c.text_width(num, "6x8") - 6
+        num = [format_count(count), "white"]
+        label = ["PLAYING", STEAM_DIM]
     else:
-        c.text("OFFLINE", right_edge, 2, font = "4x5", color = WARN, align = "right")
-        right_edge = right_edge - c.text_width("OFFLINE", "4x5") - 6
+        num = ["--", WARN]
+        label = ["OFFLINE", WARN]
+    # Fixed zone width so the title column does not jump between refreshes.
+    zone_w = max(c.text_width("9.9M", "10x16"), c.text_width(num[0], "10x16"),
+                 c.text_width(label[0], "4x5"))
+    c.text(num[0], right, 4, font = "10x16", color = num[1], align = "right")
+    c.text(label[0], right, 23, font = "4x5", color = label[1], align = "right")
+    rail = right - zone_w - 5
+    c.line(rail, 3, rail, 28, RULE)
+    left_w = rail - 5 - PAD
 
-    header_left = []
-    if store["genre"] != None:
-        header_left.append([store["genre"], MUTED])
-    if store["year"] != None:
-        header_left.append([store["year"], STEAM_DIM])
-    fitted_header = []
-    lx = left_edge
-    for chip in header_left:
-        w = c.text_width(chip[0], "5x7")
-        if lx + w > right_edge - 4:
-            break
-        c.text(chip[0], lx, 1, font = "5x7", color = chip[1])
-        fitted_header.append(chip[0])
-        lx += w + 5
+    # Left zone — brand + slot, title, then review / price / genre / year.
+    c.text("STEAM", PAD, 2, font = "5x7", color = STEAM_BLUE)
+    if total > 1:
+        c.text(str(slot + 1) + "/" + str(total),
+               PAD + c.text_width("STEAM", "5x7") + 4, 4, font = "4x5",
+               color = STEAM_DIM)
 
-    c.line(0, 10, c.width - 1, 10, "#1B2838")
+    fitted = fit_clip(c, name, left_w, ["6x8", "5x7", "4x7", "4x5"])
+    c.text(fitted[1], PAD, 12, font = fitted[0], color = "white")
 
-    # Row 2 — title left, review + price right (fills the open upper area).
-    right_chips = []
-    if review_pct != None:
-        right_chips.append(review_chip(review_pct))
-    if store["is_free"]:
-        right_chips.append(["F2P", PRICE_GOLD])
-    elif store["price"] != None:
-        right_chips.append([store["price"], PRICE_GOLD])
-
-    right_w = 0
-    gap = 5
-    for i in range(len(right_chips)):
-        right_w += c.text_width(right_chips[i][0], "5x7")
-        if i > 0:
-            right_w += gap
-
-    title_max = c.width - 6
-    if right_w > 0:
-        title_max = c.width - 4 - right_w - 8
-    if title_max < 60:
-        title_max = c.width - 4
-        right_chips = []
-
-    fitted = fit_clip(c, name, title_max, ["5x7", "4x5"])
-    c.text(fitted[1], 2, 13, font = fitted[0], color = "white")
-
-    rx = c.width - 2
-    for i in range(len(right_chips) - 1, -1, -1):
-        label = right_chips[i][0]
-        color = right_chips[i][1]
-        c.text(label, rx, 13, font = "5x7", color = color, align = "right")
-        rx = rx - c.text_width(label, "5x7") - gap
-
-    # Row 3 — leftover facts only (no AppID filler).
-    bottom = []
-    if store["genre"] != None and store["genre"] not in fitted_header:
-        bottom.append([store["genre"], MUTED])
-    if store["year"] != None and store["year"] not in fitted_header:
-        bottom.append([store["year"], STEAM_DIM])
-    shown_right = []
-    for chip in right_chips:
-        shown_right.append(chip[0])
-    if review_pct != None and review_chip(review_pct)[0] not in shown_right:
-        bottom = [review_chip(review_pct)] + bottom
-    if store["is_free"] and "F2P" not in shown_right:
-        bottom = [["F2P", PRICE_GOLD]] + bottom
-    elif store["price"] != None and store["price"] not in shown_right:
-        bottom = [[store["price"], PRICE_GOLD]] + bottom
-
-    if len(bottom) > 0:
-        shown = pack_chips(c, bottom, c.width - 4, "5x7")
+    chips = meta_chips(store, review_pct)
+    if len(chips) > 0:
         chip_font = "5x7"
+        shown = pack_chips(c, chips, left_w, chip_font)
         if len(shown) == 0:
-            shown = pack_chips(c, bottom, c.width - 4, "4x5")
             chip_font = "4x5"
-        x = 2
+            shown = pack_chips(c, chips, left_w, chip_font)
+        x = PAD
         for chip in shown:
-            c.text(chip[0], x, 24, font = chip_font, color = chip[1])
-            x += c.text_width(chip[0], chip_font) + 6
+            c.text(chip[0], x, 22, font = chip_font, color = chip[1])
+            x += c.text_width(chip[0], chip_font) + 5
+    elif count == None:
+        # Error screen second line: say what happens next, not just that it broke.
+        hint = fit_clip(c, "RETRYING NEXT REFRESH", left_w, ["5x7", "4x5"])
+        c.text(hint[1], PAD, 22, font = hint[0], color = MUTED)

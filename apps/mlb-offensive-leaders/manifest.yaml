@@ -1,7 +1,7 @@
 id: mlb-offensive-leaders
 name: MLB Offensive Leaders
 author: cfdmb
-description: Top 4 batting leaders by category, for MLB, AL, or NL.
+description: Top 3 batting leaders by category, for MLB, AL, or NL.
 category: Sports
 width: 128
 height: 32
@@ -20,5 +20,5 @@ inputs:
     type: string
     app_input_type: dropdown
     label: League
-    options: [MLB, AL, NL]
+    choices: [MLB, AL, NL]
     default: MLB

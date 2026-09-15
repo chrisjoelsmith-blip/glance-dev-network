@@ -1,0 +1,12 @@
+gdn: 1
+id: "us-flag-status-led"
+version: "0.1.0"
+name: "Half-Staff Watch Mini"
+author: "Christian Kunz"
+description: "US flag position, why, and until when."
+entry: "app.star"
+category: "news"
+width: 64
+height: 32
+refresh: 900
+pages: ["flag", "why", "when"]

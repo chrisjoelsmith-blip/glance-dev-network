@@ -353,21 +353,42 @@ def _col_index(header, want, fallback):
     return fallback
 
 
+# A Google Sheet id is 44 characters of letters, digits, '-' and '_'. Anything
+# shorter than this reached the app cut off, not mistyped.
+ID_LEN = 44
+ID_MIN = 30
+
+
 def sheet_id(url):
     """The document id out of whatever the user pasted -- the edit link,
-    the share link, or a bare id."""
+    the share link, the link with the scheme dropped, or the bare id.
+
+    Settings ride a colon-separated render descriptor, so a pasted
+    https:// link arrives here as the single word "https" and nothing
+    else. That is why the bare id is the recommended form, and why "https"
+    is recognised rather than treated as an empty setting: the person did
+    fill the box in, and the message has to tell them what to change."""
     u = str(url).strip()
     if u == "":
         return ""
+    low = u.lower()
+    if low in ["http", "https"] or low.startswith("http:") or \
+       low.startswith("https:"):
+        return "URL CUT"
     if "/d/" in u:
         rest = u.split("/d/")[1]
         for cut in ["/", "?", "#"]:
             if cut in rest:
                 rest = rest.split(cut)[0]
         return rest
-    if "/" not in u and len(u) > 20:
-        return u
-    return ""
+    if "/" in u:
+        return ""
+    for cut in ["?", "#"]:
+        if cut in u:
+            u = u.split(cut)[0]
+    if len(u) < 10:
+        return ""
+    return u
 
 
 def fetch_log(ctx):
@@ -375,6 +396,13 @@ def fetch_log(ctx):
     sid = sheet_id(ctx.inputs.get("sheeturl", ""))
     if sid == "":
         return "NO SHEET"
+    if sid == "URL CUT":
+        return "URL CUT"
+    if len(sid) < ID_MIN:
+        # A real id is 44 characters. A shorter one is the tail of a value
+        # that was cut in transit, and asking Google about it would only
+        # produce a 404 that reads as "not shared".
+        return "ID CUT SHORT"
     gid = str(ctx.inputs.get("gid", "")).strip()
     params = {}
     if gid != "":
@@ -505,7 +533,9 @@ def read(ctx):
     data = fetch_log(ctx)
     if type(data) == "string":
         DETAIL = {
-            "NO SHEET": "ADD THE URL",
+            "NO SHEET": "ADD THE SHEET ID",
+            "URL CUT": "PASTE THE ID ONLY",
+            "ID CUT SHORT": "PASTE THE ID ONLY",
             "NOT SHARED": "SHARE THE LINK",
             "SHEET EMPTY": "ADD A WEIGH IN",
             "CHECK COLUMNS": "DATE AND WEIGHT",

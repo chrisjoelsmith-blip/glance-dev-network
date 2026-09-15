@@ -12,9 +12,8 @@ Display historic college football rivalry series, head-to-head records, rankings
 | Setting | Required | Description |
 |--------|----------|-------------|
 | **API Key** | Yes | Your API key from [CollegeFootballData.com](https://collegefootballdata.com/) |
-| **Team 1** | Yes | First school name (e.g. `Oklahoma`, `Notre Dame`) |
-| **Team 2** | Yes | Second school name (e.g. `Texas`, `Tennessee`) |
-| **Custom Title** | No | Optional banner title override. Blank = automatic rivalry name lookup |
+| **Team 1** | Yes | First school, picked from the FBS list (e.g. `Oklahoma`, `Notre Dame`) |
+| **Team 2** | Yes | Second school, picked from the FBS list (e.g. `Texas`, `Tennessee`) |
 | **Team Name Length** | Yes | Choose between **Abbreviations** or **Full Name** (up to 12 characters + series win tally) |
 
 ---
@@ -31,15 +30,19 @@ The College Football Data API provides free tiers suitable for personal display 
 
 ## Pages & Layout
 
-| Page | What’s shown |
+| Page | What's shown |
 |------|----------------|
-| **Main Series View** | Custom banner title, CFP/AP rankings, split-color series history progress bar with team win totals, team abbreviations or full names, and a 3-section bottom ticker. |
-| **First Meeting View** | Dynamic gradient background for teams that have never played before, with scheduled next matchup details. |
+| **Series View** | Team chips in each school's colors with the rivalry name between them, all-time win totals on either side of a tug-of-war bar (ties in gray; the white midfield marker shows who leads), and a footer with the last result, ties, and the next meeting. |
+| **First Meeting View** | For teams that have never played: both team chips, **FIRST MEETING**, and the next scheduled date. |
 
-### Bottom 3-Section Grid Box Breakdown
-* **LAST:** Most recent matchup result and score, color-coded to the winning team.
-* **STREAK:** Current active winning streak counter, color-coded to the team holding the streak.
-* **NEXT:** Date of the upcoming scheduled matchup.
+### Reading the panel
+* **#N** beside a win total: that team's current ranking (CFP when available, otherwise AP).
+* **WN** beside a win total: that team has won the last N meetings.
+* **LAST:** Most recent result, winner first.
+* **TIES:** Tied games in the series (hidden when there are none).
+* **NEXT:** Date of the next scheduled meeting, or TBD.
+
+Team colors come from CFBD and are brightened for the LED. Black team colors use the school's alternate color, and when both teams' colors are too similar the second team switches to its alternate color.
 
 ---
 
@@ -58,10 +61,12 @@ This app is **not** affiliated with the NCAA or CollegeFootballData.com. All spo
 
 | What you see | Likely cause | What to try |
 |--------------|--------------|-------------|
-| **ADD CFBD API KEY** | Missing API key setting | Enter your College Football Data API key in the app settings |
-| **INVALID TEAM INPUT** / **CHECK TEAMS SPELLING** | Misspelled or unrecognized school name | Verify the spelling of Team 1 and Team 2 against official FBS names |
-| **NO SERIES DATA** | API returned empty series record | Ensure both teams are valid FBS opponents with a recorded history |
-| **API ERROR** | Network issue or invalid key | Check your API key or verify API service status |
+| **DEMO** in the bottom row | No API key yet, so the panel shows a sample Red River screen | Enter your College Football Data API key in the app settings |
+| **TEAM NOT RECOGNIZED** | A saved school name that isn't on the FBS list | Pick Team 1 and Team 2 again from the dropdowns |
+| **PICK TWO DIFFERENT TEAMS** | Team 1 and Team 2 are the same school | Choose a different school for one of them |
+| **NO SERIES DATA** | CFBD returned no series record for the pair | Try another matchup |
+| **CFBD KEY REJECTED** | The API key is invalid or expired | Check the API key in the app settings |
+| **CFBD UNAVAILABLE** | Network issue or CFBD is down | Check your key, or wait for the next refresh |
 
 ---
 

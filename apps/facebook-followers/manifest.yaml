@@ -1,0 +1,23 @@
+gdn: 1
+id: facebook-followers
+version: 0.1.0
+name: Facebook Page Followers
+author: glance-led-dev
+description: Live follower count for a public Facebook Page, every digit, with the page's name and verified badge. No API key or login needed.
+category: Lifestyle
+entry: app.star
+
+width: 64
+height: 32
+# Ten minutes, cached to match: enough to feel live, gentle on Facebook.
+refresh: 600
+
+pages: [followers]
+
+inputs:
+  - key: page
+    type: string
+    app_input_type: free-text
+    label: Facebook Page ID
+    default: "54971236771"
+    help: The Page's numeric ID, shown on the Page's About tab under Page transparency. 54971236771 is NASA. The name from the page's URL (nasa) works too. Public Pages only, not personal profiles.

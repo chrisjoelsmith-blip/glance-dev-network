@@ -1,0 +1,86 @@
+gdn: 1
+id: mlb-magic-number
+version: 0.1.0
+name: MLB Magic Number
+author: John McRae
+description: One team's magic number (or elimination number) to clinch, with the club mark. Pick any MLB team.
+category: Sports
+entry: app.star
+
+width: 128
+height: 32
+# Standings move when games become Final; 5 min keeps the combo number current.
+refresh: 3600
+
+pages: [main]
+
+assets:
+  - ari.png
+  - ath.png
+  - atl.png
+  - bal.png
+  - bos.png
+  - chc.png
+  - chw.png
+  - cin.png
+  - cle.png
+  - col.png
+  - det.png
+  - hou.png
+  - kc.png
+  - laa.png
+  - lad.png
+  - mia.png
+  - mil.png
+  - min.png
+  - nym.png
+  - nyy.png
+  - phi.png
+  - pit.png
+  - sd.png
+  - sf.png
+  - sea.png
+  - stl.png
+  - tb.png
+  - tex.png
+  - tor.png
+  - wsh.png
+
+inputs:
+  - key: team
+    type: choice
+    app_input_type: dropdown
+    label: Team
+    default: Atlanta Braves
+    help: Which club to follow. Division leaders show a magic number; everyone else still in the hunt shows an elimination number.
+    choices:
+      - Arizona Diamondbacks
+      - Athletics
+      - Atlanta Braves
+      - Baltimore Orioles
+      - Boston Red Sox
+      - Chicago Cubs
+      - Chicago White Sox
+      - Cincinnati Reds
+      - Cleveland Guardians
+      - Colorado Rockies
+      - Detroit Tigers
+      - Houston Astros
+      - Kansas City Royals
+      - Los Angeles Angels
+      - Los Angeles Dodgers
+      - Miami Marlins
+      - Milwaukee Brewers
+      - Minnesota Twins
+      - New York Mets
+      - New York Yankees
+      - Philadelphia Phillies
+      - Pittsburgh Pirates
+      - San Diego Padres
+      - San Francisco Giants
+      - Seattle Mariners
+      - St. Louis Cardinals
+      - Tampa Bay Rays
+      - Texas Rangers
+      - Toronto Blue Jays
+      - Washington Nationals

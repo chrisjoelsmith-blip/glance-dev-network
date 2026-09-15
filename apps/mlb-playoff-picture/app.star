@@ -12,6 +12,17 @@
 # Data from MLB's own public Stats API (statsapi.mlb.com) - no key required.
 # Sibling app to mlb-offensive-leaders / mlb-pitching-leaders, same team
 # color source.
+#
+# DESIGN. A scorebook on a black ground. Every team is the same object on
+# every page: a small tile in the team's color carrying its seed, with the
+# nickname in white beside it - the color identifies, the white text reads.
+# Earlier builds painted whole rows in team colors, and "YANKEES" on navy or
+# "RAYS" on Columbia blue were hard to pull off the panel from across a room.
+# Each page opens on a league chip (AL red, NL blue) so a viewer knows which
+# half of the bracket they're on, the tiles and names sit on one shared
+# column grid so the pages line up as they scroll past, and everything stays
+# 6px inside both edges so the app reads as its own unit in the stream.
+# "@" marks the host, which replaces the old "GAMES IN <CITY>" lines.
 
 TEAM_COLORS = {
     108: ["#BA0021"],  # LAA (Red)
@@ -48,26 +59,61 @@ TEAM_COLORS = {
 
 AL_ID = 103
 NL_ID = 104
+LEAGUE_ID = {"AL": AL_ID, "NL": NL_ID}
 
-# Original pixel-art cap silhouette (not a reproduction of any team's real
-# logo/mark) - just a rounded crown + brim, filled in the team's own color.
-# Two mirrored variants so the AL/NL halves of the byes page face each other.
-HAT_ICON = [
-    "..###..",
-    ".#####.",
-    "#######",
-    "#######",
-    "....###",
+# ---------- palette & grid ----------
+
+INK = "#F4F7FF"     # names, live numbers
+DIM = "#6E7A94"     # labels, meta
+STRUCT = "#282828"  # dividers
+AMBER = "#E8B04A"   # the one attention state (a tiebreaker on the bubble)
+LEAGUE = {"AL": "#D22D3A", "NL": "#2A66D9"}
+
+PAD = 6             # scroll safe zone, both edges
+# A 5x7 seed digit with 2px of team color either side. At 7px wide (1px
+# margins) a black "6" on the SD gold tile read as "B", and "3" on HOU as "8".
+TILE_W = 9
+TILE_H = 9
+NAME_GAP = 2
+MID = 64            # the "@" / divider column
+LEFT_TILE = PAD
+LEFT_NAME = LEFT_TILE + TILE_W + NAME_GAP   # 17
+RIGHT_TILE = MID + 4                        # 68: "@" is x62-66, 1px clear
+RIGHT_NAME = RIGHT_TILE + TILE_W + NAME_GAP # 79
+NAME_W = 43         # x79-121 on the right; left names (x17-60) stop 1px shy of "@"
+ROW_Y = [10, 21]    # two 9px team rows under the 7px chip row
+
+# Names get one font per page, not per row: "GUARDIANS" (53px at 5x7) in
+# 4x7 beside "ASTROS" in 5x7 reads as a mistake. 5x7 when every name on the
+# page fits, else 4x7 (43px for GUARDIANS), then a hard clip.
+NAME_FONTS = ["5x7", "4x7"]
+
+# Original pixel-art baseball for the intro card: white hide, gray rim, red
+# seams bowing in toward the middle.
+BALL = [
+    ".....ssssss.....",
+    "...sswwwwwwss...",
+    "..srwwwwwwwwrs..",
+    ".swrwwwwwwwwrws.",
+    ".swwrwwwwwwrwws.",
+    "swwwrwwwwwwrwwws",
+    "swwwrwwwwwwrwwws",
+    "swwwrwwwwwwrwwws",
+    "swwwrwwwwwwrwwws",
+    "swwwrwwwwwwrwwws",
+    "swwwrwwwwwwrwwws",
+    ".swwrwwwwwwrwws.",
+    ".swrwwwwwwwwrws.",
+    "..srwwwwwwwwrs..",
+    "...sswwwwwwss...",
+    ".....ssssss.....",
 ]
-HAT_ICON_MIRRORED = [
-    "..###..",
-    ".#####.",
-    "#######",
-    "#######",
-    "###....",
-]
+BALL_LEGEND = {"s": "#8C95A8", "w": INK, "r": "#E03A3E"}
+BALL_W = 16
 
 # ---------- color helpers ----------
+
+HEX = "0123456789ABCDEF"
 
 def brightness(hex_color):
     r = int(hex_color[1:3], 16)
@@ -75,75 +121,63 @@ def brightness(hex_color):
     b = int(hex_color[5:7], 16)
     return (r * 299 + g * 587 + b * 114) // 1000
 
-def badge_color(team_id):
-    # Darkest of the team's colors - these badges carry white text, so a near-white
-    # option (e.g. LAD's white) would be unreadable; the darkest color gives the best
-    # contrast against white text while still reading as the team's color.
+def lighten(hex_color, pct):
+    out = "#"
+    for i in [1, 3, 5]:
+        v = int(hex_color[i:i + 2], 16)
+        v = v + (255 - v) * pct // 100
+        out += HEX[v // 16] + HEX[v % 16]
+    return out
+
+def team_color(team_id):
+    # Darkest of the team's colors - it carries the seed digit, and COL's
+    # silver would wash the tile out.
     colors = TEAM_COLORS.get(team_id, ["#444444"])
     best = colors[0]
-    best_brightness = brightness(best)
-    for color in colors:
-        b = brightness(color)
-        if b < best_brightness:
-            best = color
-            best_brightness = b
+    for col in colors:
+        if brightness(col) < brightness(best):
+            best = col
     return best
 
-def text_color_for(team_id):
-    # badge_color already picks each team's darkest option, but a few teams
-    # (TB's Columbia Blue, HOU/ATH/PIT/SD's gold/orange) have no dark option
-    # at all - white text on those reads weak. Fall back to black above this
-    # brightness instead of assuming white always works.
-    if brightness(badge_color(team_id)) > 150:
-        return "black"
-    return "white"
+def ink_on(fill):
+    # TB's Columbia Blue and the HOU/ATH/PIT/SD golds have no dark option,
+    # so the digit flips to black above this brightness.
+    return "black" if brightness(fill) > 150 else "white"
 
 # ---------- network (keyless) ----------
 
-def fetch_standings(standings_type, season):
-    return http.get(
+def standings(ctx, standings_type):
+    resp = http.get(
         "https://statsapi.mlb.com/api/v1/standings",
         params = {
             "leagueId": "103,104",
-            "season": str(season),
+            "season": str(ctx.now.year),
             "standingsTypes": standings_type,
         },
+        # matches manifest.yaml's refresh - keep in sync
         ttl_seconds = 7200,
     )
+    if resp["status_code"] != 200 or type(resp["json"]) != "dict":
+        return None
+    return resp["json"].get("records", [])
 
-def fetch_teams():
-    return http.get(
+def team_info():
+    # One call for both abbreviations and nicknames (it was three calls to
+    # the same URL). Team names change about once a decade, hence the ttl.
+    resp = http.get(
         "https://statsapi.mlb.com/api/v1/teams",
         params = {"sportId": "1"},
         ttl_seconds = 2592000,
     )
-
-def team_abbrev_map():
-    resp = fetch_teams()
-    m = {}
-    if resp["status_code"] != 200:
-        return m
+    out = {}
+    if resp["status_code"] != 200 or type(resp["json"]) != "dict":
+        return out
     for t in resp["json"].get("teams", []):
-        m[t["id"]] = t.get("abbreviation", "")
-    return m
-
-def team_city_map():
-    resp = fetch_teams()
-    m = {}
-    if resp["status_code"] != 200:
-        return m
-    for t in resp["json"].get("teams", []):
-        m[t["id"]] = t.get("locationName", "")
-    return m
-
-def team_nickname_map():
-    resp = fetch_teams()
-    m = {}
-    if resp["status_code"] != 200:
-        return m
-    for t in resp["json"].get("teams", []):
-        m[t["id"]] = t.get("teamName", "")
-    return m
+        out[t.get("id")] = {
+            "abbr": t.get("abbreviation", ""),
+            "name": t.get("teamName", ""),
+        }
+    return out
 
 # ---------- seeding ----------
 # Format used since 2022: 3 division winners seeded 1-3 by record, then the
@@ -189,224 +223,224 @@ def seeds_for_league(div_records, wc_records, league_id):
         seeds.append(t)
     return seeds  # seed order: index 0 = seed 1 ... index 5 = seed 6
 
-# ---------- drawing ----------
+def load_seeds(ctx):
+    div = standings(ctx, "regularSeason")
+    wc = standings(ctx, "wildCard")
+    if div == None or wc == None:
+        return None
+    return {
+        "AL": seeds_for_league(div, wc, AL_ID),
+        "NL": seeds_for_league(div, wc, NL_ID),
+    }
 
-def team_label(t, abbrev):
-    team_id = t.get("team", {}).get("id", -1)
-    return abbrev.get(team_id, "???")
+# ---------- text helpers ----------
 
-def record_label(t):
-    rec = t.get("leagueRecord", {})
-    return str(rec.get("wins", 0)) + "-" + str(rec.get("losses", 0))
+def clip(c, text, font, maxw):
+    # Longest prefix that fits - nothing in the API clips on its own.
+    t = str(text)
+    if c.text_width(t, font) <= maxw:
+        return t
+    for k in range(len(t), 0, -1):
+        if c.text_width(t[:k], font) <= maxw:
+            return t[:k]
+    return ""
 
-def city_line(city_name):
-    return "GAMES IN " + city_name
+def page_font(c, strings, maxw):
+    for f in NAME_FONTS:
+        fits = True
+        for s in strings:
+            if c.text_width(s, f) > maxw:
+                fits = False
+                break
+        if fits:
+            return f
+    return NAME_FONTS[-1]
 
-def fit_text(c, text, font, maxw):
-    # Truncates on actual pixel width, not a guessed character count - long
-    # nicknames like "DIAMONDBACKS" would otherwise overflow the quadrant.
-    if c.text_width(text, font) <= maxw:
-        return text
-    for i in range(len(text), 0, -1):
-        candidate = text[:i] + "..."
-        if c.text_width(candidate, font) <= maxw:
-            return candidate
-    return "..."
+def team_id_of(t):
+    return t.get("team", {}).get("id", -1)
 
-def draw_bye_quadrant(c, x0, y0, x1, y1, team_id, text):
-    text = text.upper()
-    c.rect(x0, y0, x1, y1, fill = badge_color(team_id))
-    # A near-black team color (e.g. CWS) would otherwise blend into the
-    # panel's own black background - a light outline keeps every quadrant
-    # visually framed regardless of how dark that team's color is.
-    c.rect(x0, y0, x1, y1, outline = "#888888")
-    cx = (x0 + x1) // 2
-    cy = y0 + (y1 - y0 - 5) // 2  # roughly vertical-center the 6px-tall "4x5" font
-    maxw = x1 - x0 - 4  # small margin so text never touches the divider lines
-    c.text(fit_text(c, text, "4x5", maxw), cx, cy, font = "4x5", color = text_color_for(team_id), align = "center")
+def nickname(t, teams):
+    info = teams.get(team_id_of(t))
+    if info and info["name"]:
+        return info["name"].upper()
+    # teams feed down: "New York Yankees" -> "YANKEES" beats a blank row
+    return t.get("team", {}).get("name", "???").split(" ")[-1].upper()
 
-def draw_split_bg(c, y, away_id, home_id):
-    c.rect(0, y - 1, 64, y + 5, fill = badge_color(away_id))
-    c.rect(64, y - 1, 127, y + 5, fill = badge_color(home_id))
-    c.line(64, y - 1, 64, y + 5, "black")
+def abbrev(t, teams):
+    info = teams.get(team_id_of(t))
+    if info and info["abbr"]:
+        return info["abbr"].upper()
+    return nickname(t, teams)[:3]
 
-def draw_matchup_row(c, y, away_id, away_text, home_id, home_text):
-    away_text = away_text.upper()
-    home_text = home_text.upper()
-    draw_split_bg(c, y, away_id, home_id)
-    c.text(away_text, 32, y, font = "4x5", color = text_color_for(away_id), align = "center")
-    c.text(home_text, 96, y, font = "4x5", color = text_color_for(home_id), align = "center")
+# ---------- chrome ----------
 
-def gms_line(city_name):
-    return "GAMES 1 & 2 IN " + city_name
+def chip(c, word, bg, x, right = False):
+    # 7px pill: 4x5 text with 1px of fill above and below, 2px either side.
+    w = c.text_width(word, "4x5") + 4
+    x0 = x - w + 1 if right else x
+    c.round_rect(x0, 0, x0 + w - 1, 6, 1, fill = bg)
+    c.text(word, x0 + 2, 1, font = "4x5", color = ink_on(bg))
+    return x0 + w
 
-def draw_ds_row(c, y, bye_id, bye_text, wc_a_id, wc_a_text, wc_b_id, wc_b_text):
-    bye_text = bye_text.upper()
-    wc_a_text = wc_a_text.upper()
-    wc_b_text = wc_b_text.upper()
+def header(c, lg, title):
+    x = chip(c, lg, LEAGUE[lg], PAD)
+    c.text(title, x + 3, 1, font = "4x5", color = INK)
 
-    c.rect(0, y - 1, 32, y + 5, fill = badge_color(wc_a_id))
-    c.rect(32, y - 1, 64, y + 5, fill = badge_color(wc_b_id))
-    c.rect(64, y - 1, 127, y + 5, fill = badge_color(bye_id))
+def message(c, head, sub, head_color):
+    # Sits in the band under the chip row, so a failed page still says
+    # which page it is.
+    w = c.width - 2 * PAD
+    c.text(clip(c, head, "5x7", w), c.width // 2, 12, font = "5x7", color = head_color, align = "center")
+    c.text(clip(c, sub, "4x5", w), c.width // 2, 23, font = "4x5", color = DIM, align = "center")
 
-    c.text(wc_a_text, 16, y, font = "4x5", color = text_color_for(wc_a_id), align = "center")
-    c.text(wc_b_text, 48, y, font = "4x5", color = text_color_for(wc_b_id), align = "center")
-    c.text(bye_text, 96, y, font = "4x5", color = text_color_for(bye_id), align = "center")
+def offline(c):
+    message(c, "STANDINGS OFFLINE", "TRYING AGAIN SOON", AMBER)
 
-    c.line(32, y - 1, 32, y + 5, "black")
-    c.line(64, y - 1, 64, y + 5, "black")
+def not_yet(c):
+    # Before opening day there's simply no field to show - not an error.
+    message(c, "NO STANDINGS YET", "BACK ON OPENING DAY", INK)
 
-def draw_ds_preview_page(c, ctx, league_id, league_label):
-    c.fill("black")
+def tile(c, x, y, h, team_id, label):
+    fill = team_color(team_id)
+    # Navy (NYY, MIL) and near-black (CWS) tiles vanish into the ground, so
+    # the darkest colors get a rim in a lighter tint of themselves.
+    edge = lighten(fill, 45) if brightness(fill) < 64 else fill
+    c.round_rect(x, y, x + TILE_W - 1, y + h - 1, 1, fill = fill, outline = edge)
+    if label != "":
+        c.text(label, x + TILE_W // 2, y + (h - 7) // 2, font = "5x7", color = ink_on(fill), align = "center")
 
-    div_resp = fetch_standings("regularSeason", ctx.now.year)
-    wc_resp = fetch_standings("wildCard", ctx.now.year)
-    if div_resp["status_code"] != 200 or wc_resp["status_code"] != 200:
-        c.text("DATA ERROR".upper(), 4, 12, font = "5x7", color = "red", align = "left")
-        return
+def team_cell(c, x, y, seed, t, text, font):
+    tile(c, x, y, TILE_H, team_id_of(t), str(seed))
+    c.text(clip(c, text, font, NAME_W), x + TILE_W + NAME_GAP, y + 1, font = font, color = INK)
 
-    seeds = seeds_for_league(
-        div_resp["json"].get("records", []),
-        wc_resp["json"].get("records", []),
-        league_id,
-    )
-    if len(seeds) < 6:
-        c.text("NO DATA YET".upper(), 4, 12, font = "5x7", color = "gray", align = "left")
-        return
-
-    nicknames = team_nickname_map()
-    abbrev = team_abbrev_map()
-    cities = team_city_map()
-
-    c.rect(0, 0, 127, 6, fill = "white")
-    c.text((league_label + " DIVISION SERIES").upper(), 64, 1, font = "4x5", color = "black", align = "center")
-
-    seed1, seed2, seed3, seed4, seed5, seed6 = seeds[0], seeds[1], seeds[2], seeds[3], seeds[4], seeds[5]
-    seed1_id = seed1.get("team", {}).get("id", -1)
-    seed2_id = seed2.get("team", {}).get("id", -1)
-    seed3_id = seed3.get("team", {}).get("id", -1)
-    seed4_id = seed4.get("team", {}).get("id", -1)
-    seed5_id = seed5.get("team", {}).get("id", -1)
-    seed6_id = seed6.get("team", {}).get("id", -1)
-
-    y = 8
-    draw_ds_row(c, y, seed1_id, "1 " + team_label(seed1, nicknames),
-                 seed4_id, team_label(seed4, abbrev), seed5_id, team_label(seed5, abbrev))
-    y += 6
-    c.text(gms_line(cities.get(seed1_id, "")).upper(), 64, y, font = "picopixel", color = "gray", align = "center")
-    y += 6
-    draw_ds_row(c, y, seed2_id, "2 " + team_label(seed2, nicknames),
-                 seed3_id, team_label(seed3, abbrev), seed6_id, team_label(seed6, abbrev))
-    y += 6
-    c.text(gms_line(cities.get(seed2_id, "")).upper(), 64, y, font = "picopixel", color = "gray", align = "center")
-
-def draw_wc_series_page(c, ctx, league_id, league_label):
-    c.fill("black")
-
-    div_resp = fetch_standings("regularSeason", ctx.now.year)
-    wc_resp = fetch_standings("wildCard", ctx.now.year)
-    if div_resp["status_code"] != 200 or wc_resp["status_code"] != 200:
-        c.text("DATA ERROR".upper(), 4, 12, font = "5x7", color = "red", align = "left")
-        return
-
-    seeds = seeds_for_league(
-        div_resp["json"].get("records", []),
-        wc_resp["json"].get("records", []),
-        league_id,
-    )
-    if len(seeds) < 6:
-        c.text("NO DATA YET".upper(), 4, 12, font = "5x7", color = "gray", align = "left")
-        return
-
-    nicknames = team_nickname_map()
-    cities = team_city_map()
-
-    c.rect(0, 0, 127, 6, fill = "white")
-    c.text((league_label + " WILD CARD SERIES").upper(), 64, 1, font = "4x5", color = "black", align = "center")
-
-    seed3, seed4, seed5, seed6 = seeds[2], seeds[3], seeds[4], seeds[5]
-    seed3_id = seed3.get("team", {}).get("id", -1)
-    seed4_id = seed4.get("team", {}).get("id", -1)
-    seed5_id = seed5.get("team", {}).get("id", -1)
-    seed6_id = seed6.get("team", {}).get("id", -1)
-
-    y = 8
-    draw_matchup_row(c, y, seed6_id, "6 " + team_label(seed6, nicknames), seed3_id, "3 " + team_label(seed3, nicknames))
-    y += 6
-    c.text(city_line(cities.get(seed3_id, "")).upper(), 64, y, font = "picopixel", color = "gray", align = "center")
-    y += 6
-    draw_matchup_row(c, y, seed5_id, "5 " + team_label(seed5, nicknames), seed4_id, "4 " + team_label(seed4, nicknames))
-    y += 6
-    c.text(city_line(cities.get(seed4_id, "")).upper(), 64, y, font = "picopixel", color = "gray", align = "center")
-
-def draw_byes_page(c, ctx):
-    c.fill("black")
-
-    div_resp = fetch_standings("regularSeason", ctx.now.year)
-    wc_resp = fetch_standings("wildCard", ctx.now.year)
-    if div_resp["status_code"] != 200 or wc_resp["status_code"] != 200:
-        c.text("DATA ERROR".upper(), 4, 12, font = "5x7", color = "red", align = "left")
-        return
-
-    div_records = div_resp["json"].get("records", [])
-    wc_records = wc_resp["json"].get("records", [])
-    al_seeds = seeds_for_league(div_records, wc_records, AL_ID)
-    nl_seeds = seeds_for_league(div_records, wc_records, NL_ID)
-    if len(al_seeds) < 2 or len(nl_seeds) < 2:
-        c.text("NO DATA YET".upper(), 4, 12, font = "5x7", color = "gray", align = "left")
-        return
-
-    nicknames = team_nickname_map()
-
-    c.rect(0, 0, 127, 6, fill = "white")
-    c.text("FIRST ROUND BYES", 64, 1, font = "4x5", color = "black", align = "center")
-    c.text("AL", 2, 1, font = "4x5", color = "black", align = "left")
-    c.text("NL", 125, 1, font = "4x5", color = "black", align = "right")
-
-    al1_id = al_seeds[0].get("team", {}).get("id", -1)
-    nl1_id = nl_seeds[0].get("team", {}).get("id", -1)
-    al2_id = al_seeds[1].get("team", {}).get("id", -1)
-    nl2_id = nl_seeds[1].get("team", {}).get("id", -1)
-
-    # Each seed gets its own full-bleed quadrant - the whole area filled with
-    # the team's color, name centered on top - instead of a small badge
-    # floating in mostly-empty black space.
-    draw_bye_quadrant(c, 0, 7, 63, 18, al1_id, "1 " + team_label(al_seeds[0], nicknames))
-    draw_bye_quadrant(c, 0, 19, 63, 31, al2_id, "2 " + team_label(al_seeds[1], nicknames))
-    draw_bye_quadrant(c, 64, 7, 127, 18, nl1_id, "1 " + team_label(nl_seeds[0], nicknames))
-    draw_bye_quadrant(c, 64, 19, 127, 31, nl2_id, "2 " + team_label(nl_seeds[1], nicknames))
-
-    c.line(64, 7, 64, 31, "#888888")
-    c.line(0, 18, 127, 18, "#888888")
+def at_sign(c, y):
+    c.text("@", MID, y + 1, font = "5x7", color = DIM, align = "center")
 
 # ---------- pages ----------
 
 def intro(c, ctx):
     c.clear()
-    c.text("MLB PLAYOFFS".upper(), 64, 3, font = "7x12", color = "white", align = "center")
-    c.line(20, 18, 108, 18, "#555555")
-    c.text("IF SEASON ENDED TODAY".upper(), 64, 21, font = "4x5", color = "gray", align = "center")
-    # matches manifest.yaml's refresh (and fetch_standings' ttl_seconds) - keep in sync
-    c.text("UPDATES EVERY 2 HOURS".upper(), 64, 27, font = "picopixel", color = "#555555", align = "center")
+    hero = "PLAYOFFS"
+    hw = c.text_width(hero, "10x16")
+    lockup = BALL_W + 6 + hw
+    x0 = max(PAD, (c.width - lockup) // 2)
+    hx = x0 + BALL_W + 6
+    c.sprite(BALL, x0, 8, legend = BALL_LEGEND)
+    c.text("MLB " + str(ctx.now.year), hx, 1, font = "4x5", color = DIM)
+    c.text(hero, hx, 8, font = "10x16", color = INK)
+    c.text("IF SEASON ENDED TODAY", c.width // 2, 26, font = "4x5", color = DIM, align = "center")
 
 def byes(c, ctx):
-    draw_byes_page(c, ctx)
+    c.clear()
+    chip(c, "AL", LEAGUE["AL"], PAD)
+    chip(c, "NL", LEAGUE["NL"], c.width - PAD, right = True)
+    c.text("FIRST-ROUND BYES", c.width // 2, 1, font = "4x5", color = INK, align = "center")
+
+    data = load_seeds(ctx)
+    if data == None:
+        return offline(c)
+    if len(data["AL"]) < 2 or len(data["NL"]) < 2:
+        return not_yet(c)
+
+    teams = team_info()
+    al_names = [nickname(data["AL"][i], teams) for i in range(2)]
+    nl_names = [nickname(data["NL"][i], teams) for i in range(2)]
+    font = page_font(c, al_names + nl_names, NAME_W)
+    for i in range(2):
+        team_cell(c, LEFT_TILE, ROW_Y[i], i + 1, data["AL"][i], al_names[i], font)
+        team_cell(c, RIGHT_TILE, ROW_Y[i], i + 1, data["NL"][i], nl_names[i], font)
+    c.vline(MID, ROW_Y[0], 21, STRUCT)
+
+def wc_page(c, ctx, lg):
+    c.clear()
+    header(c, lg, "WILD CARD SERIES")
+
+    data = load_seeds(ctx)
+    if data == None:
+        return offline(c)
+    seeds = data[lg]
+    if len(seeds) < 6:
+        return not_yet(c)
+
+    teams = team_info()
+    # [visitor seed, host seed] - #3 hosts #6, #4 hosts #5
+    pairs = [[6, 3], [5, 4]]
+    names = []
+    for p in pairs:
+        names.append(nickname(seeds[p[0] - 1], teams))
+        names.append(nickname(seeds[p[1] - 1], teams))
+    font = page_font(c, names, NAME_W)
+    for i in range(2):
+        y = ROW_Y[i]
+        team_cell(c, LEFT_TILE, y, pairs[i][0], seeds[pairs[i][0] - 1], names[i * 2], font)
+        at_sign(c, y)
+        team_cell(c, RIGHT_TILE, y, pairs[i][1], seeds[pairs[i][1] - 1], names[i * 2 + 1], font)
+
+def ds_page(c, ctx, lg):
+    c.clear()
+    header(c, lg, "DIVISION SERIES")
+
+    data = load_seeds(ctx)
+    if data == None:
+        return offline(c)
+    seeds = data[lg]
+    if len(seeds) < 6:
+        return not_yet(c)
+
+    teams = team_info()
+    # One column per series, on the byes page's grid. The waiting seed is the
+    # top row; the wild card pair it will host sits under it as "VS NYY/BOS".
+    # A single row ("4 NYY 5 BOS @ 1 RAYS") needed four cells 2px apart and
+    # read as one run-on string.
+    cols = [[1, [4, 5]], [2, [3, 6]]]   # #1 hosts the 4/5 winner, #2 the 3/6
+    hosts = [nickname(seeds[col[0] - 1], teams) for col in cols]
+    font = page_font(c, hosts, NAME_W)
+    pairs = [[abbrev(seeds[s - 1], teams) for s in col[1]] for col in cols]
+    # "WSH/NYM" is the worst pair: 41px at 5x7, inside the 43px name column.
+    pair_font = page_font(c, [p[0] + "/" + p[1] for p in pairs], NAME_W)
+    slash_w = c.text_width("/", pair_font)
+
+    y = ROW_Y[1]
+    for i in range(2):
+        tx = LEFT_TILE if i == 0 else RIGHT_TILE
+        nx = tx + TILE_W + NAME_GAP
+        h = cols[i][0]
+        team_cell(c, tx, ROW_Y[0], h, seeds[h - 1], hosts[i], font)
+        # "VS" sits under the tile, baseline-aligned with the codes
+        c.text("VS", tx + TILE_W // 2, y + 2, font = "4x5", color = DIM, align = "center")
+        x = nx
+        for j in range(2):
+            if j == 1:
+                c.text("/", x, y, font = pair_font, color = DIM)
+                x += slash_w + 1
+            code = clip(c, pairs[i][j], pair_font, 17)
+            w = c.text_width(code, pair_font)
+            c.text(code, x, y, font = pair_font, color = INK)
+            # the team's color as a 2px bar under its code, 1px clear of it
+            bar = team_color(team_id_of(seeds[cols[i][1][j] - 1]))
+            if brightness(bar) < 64:
+                bar = lighten(bar, 45)
+            c.rect(x, y + 8, x + w - 1, y + 9, fill = bar)
+            x += w + 1
+    c.vline(MID, ROW_Y[0], 21, STRUCT)
 
 def al(c, ctx):
-    draw_wc_series_page(c, ctx, AL_ID, "AL")
+    wc_page(c, ctx, "AL")
 
 def nl(c, ctx):
-    draw_wc_series_page(c, ctx, NL_ID, "NL")
+    wc_page(c, ctx, "NL")
 
 def alds(c, ctx):
-    draw_ds_preview_page(c, ctx, AL_ID, "AL")
+    ds_page(c, ctx, "AL")
 
 def nlds(c, ctx):
-    draw_ds_preview_page(c, ctx, NL_ID, "NL")
+    ds_page(c, ctx, "NL")
 
 # ---------- on the bubble ----------
 # The 3 teams just missing the field: ranks 4-6 in the wildCard standingsType
 # block (ranks 1-3 there are the wild card holders, i.e. seeds 4-6 overall).
+
+BUBBLE_Y = [9, 17, 25]  # 7px rows, 1px apart - three won't fit at tile height
 
 def wildcard_bubble3(wc_records, league_id):
     for block in wc_records:
@@ -414,48 +448,53 @@ def wildcard_bubble3(wc_records, league_id):
             return block.get("teamRecords", [])[3:6]
     return []
 
-def bubble_gb_label(t):
+def bubble_gb(t):
+    # [value, value color, label]. Every team on this page is already outside
+    # the field, so no GB means level with the last spot but behind on the
+    # tiebreaker - amber, and said outright, since "TIED" alone left it
+    # unclear why that team isn't holding the spot.
     gb = t.get("wildCardGamesBack", "-")
     if gb in ("-", "", None):
-        return "TIED"
-    return gb + " GB"
+        # "LOSE TB" (31px) not "LOSES TB" (36px): the extra 5px would push a
+        # 43px name like GUARDIANS into a clip.
+        return ["TIED", AMBER, "LOSE TB"]
+    return [str(gb), INK, "GB"]
 
-def draw_bubble_row(c, y, team_id, left_text, right_text):
-    c.rect(0, y - 1, 127, y + 5, fill = badge_color(team_id))
-    tc = text_color_for(team_id)
-    c.text(left_text, 3, y, font = "4x5", color = tc, align = "left")
-    c.text(right_text, 124, y, font = "4x5", color = tc, align = "right")
+def bubble_page(c, ctx, lg):
+    c.clear()
+    header(c, lg, "ON THE BUBBLE")
 
-def draw_bubble_page(c, ctx, league_id, league_label):
-    c.fill("black")
-
-    wc_resp = fetch_standings("wildCard", ctx.now.year)
-    if wc_resp["status_code"] != 200:
-        c.text("DATA ERROR".upper(), 4, 12, font = "5x7", color = "red", align = "left")
-        return
-
-    bubble = wildcard_bubble3(wc_resp["json"].get("records", []), league_id)
+    wc = standings(ctx, "wildCard")
+    if wc == None:
+        return offline(c)
+    bubble = wildcard_bubble3(wc, LEAGUE_ID[lg])
     if len(bubble) < 3:
-        c.text("NO DATA YET".upper(), 4, 12, font = "5x7", color = "gray", align = "left")
-        return
+        return not_yet(c)
 
-    nicknames = team_nickname_map()
-
-    c.rect(0, 0, 127, 6, fill = "white")
-    c.text((league_label + " ON THE BUBBLE").upper(), 64, 1, font = "4x5", color = "black", align = "center")
-
-    y = 9
-    rank = 4
+    teams = team_info()
+    right = c.width - PAD
+    names = []
+    gbs = []
+    room = NAME_W * 2
     for t in bubble:
-        team_id = t.get("team", {}).get("id", -1)
-        left = (str(rank) + " " + team_label(t, nicknames)).upper()
-        right = bubble_gb_label(t).upper()
-        draw_bubble_row(c, y, team_id, left, right)
-        y += 8
-        rank += 1
+        g = bubble_gb(t)
+        gbs.append(g)
+        names.append(nickname(t, teams))
+        # right side measured first; the name gets what's left, 4px clear
+        vw = c.text_width(g[0], "5x7") + 2 + c.text_width(g[2], "4x5")
+        room = min(room, right - vw - 4 - LEFT_NAME + 1)
+    font = page_font(c, names, room)
+
+    for i in range(3):
+        y = BUBBLE_Y[i]
+        g = gbs[i]
+        tile(c, LEFT_TILE, y, 7, team_id_of(bubble[i]), "")
+        c.text(clip(c, names[i], font, room), LEFT_NAME, y, font = font, color = INK)
+        c.text(g[2], right, y + 2, font = "4x5", color = DIM, align = "right")
+        c.text(g[0], right - c.text_width(g[2], "4x5") - 2, y, font = "5x7", color = g[1], align = "right")
 
 def albubble(c, ctx):
-    draw_bubble_page(c, ctx, AL_ID, "AL")
+    bubble_page(c, ctx, "AL")
 
 def nlbubble(c, ctx):
-    draw_bubble_page(c, ctx, NL_ID, "NL")
+    bubble_page(c, ctx, "NL")

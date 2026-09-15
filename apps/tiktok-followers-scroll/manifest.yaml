@@ -1,0 +1,30 @@
+gdn: 1
+id: tiktok-followers-scroll
+version: 0.1.0
+name: TikTok Followers (Scroll)
+author: glance-led-dev
+description: Live follower count for a TikTok account, every digit, with an optional goal bar. A second page shows total likes and videos. No API key needed.
+category: Lifestyle
+entry: app.star
+
+width: 192
+height: 32
+# Ten minutes: counts move faster, but a shared host scraping a profile
+# page every minute gets blocked. The fetch ttl matches.
+refresh: 600
+
+pages: [followers, likes]
+
+inputs:
+  - key: username
+    type: string
+    app_input_type: free-text
+    label: TikTok username
+    default: "tiktok"
+    help: The handle from the profile URL, with or without the @. For https://www.tiktok.com/@khaby.lame enter khaby.lame.
+  - key: goal
+    type: string
+    app_input_type: free-text
+    label: Follower goal (optional)
+    default: ""
+    help: A target like 10K, 250K or 1.5M. Adds a progress bar under the count on the scroll panel and a percentage on the 64 panel. Leave blank for none.

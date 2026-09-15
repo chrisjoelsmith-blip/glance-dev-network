@@ -17,13 +17,12 @@ inputs:
   - key: sheeturl
     type: string
     app_input_type: free-text
-    label: Google Sheet URL
+    label: Google Sheet ID
     default: ""
     help: >-
-      ** This uses a public link and shown on your Glance which may be in a
-      public place ** In the Sheet, use Share and set "Anyone with the link"
-      to Viewer, then paste the link here. Anyone holding that link can read
-      the sheet. Turn on Trend Only below to keep the numbers off the panel.
+      Share the sheet as "Anyone with the link" (Viewer), then paste only the
+      sheet ID: the long code between /d/ and /edit in the link, not the whole
+      link.
   - key: gid
     type: string
     app_input_type: free-text

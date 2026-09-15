@@ -1,0 +1,24 @@
+id: nfl-defensive-leaders
+name: NFL Defensive Leaders
+author: cfdmb
+description: Top 3 defensive leaders by category, for NFL, AFC, or NFC.
+category: Sports
+width: 128
+height: 32
+refresh: 10800
+pages:
+  - tackles
+  - solo
+  - sacks
+  - ints
+  - pd
+  - tfl
+  - ff
+  - deftd
+inputs:
+  - key: league
+    type: string
+    app_input_type: dropdown
+    label: League
+    choices: [NFL, AFC, NFC]
+    default: NFL

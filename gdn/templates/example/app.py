@@ -47,7 +47,7 @@ def render_current(c, inputs):
     c.text("F", 40, 12, font="7x12", color="white")
 
     # condition + hi/lo on the right
-    c.text(wx["cond"], c.width - 4, 12, font="7x12", color=COND_COLOR.get(wx["cond"], "white"), align="right")
+    c.text(wx["cond"], c.width - 4, 10, font="7x12", color=COND_COLOR.get(wx["cond"], "white"), align="right")
     c.text(f"H{wx['hi']} L{wx['lo']}", c.width - 4, 24, font="5x7", color="gray", align="right")
 
 

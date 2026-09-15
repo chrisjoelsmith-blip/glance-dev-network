@@ -179,18 +179,7 @@ def belt(c, kind):
         c.hline(43, 25, 5, EDGE)
 
 def champion_text(c, name, x, y, font):
-    # Bundled 7x12 has a 12px A but 8px R/H/E/etc. Use a matching 6x8 A
-    # locally so RHEA shares a baseline, without changing the shared SDK.
-    for i in range(len(name)):
-        ch = name[i]
-        if font == "7x12" and ch == "A":
-            c.sprite([".AAAA.", "AA..AA", "AA..AA", "AAAAAA",
-                      "AAAAAA", "AA..AA", "AA..AA", "AA..AA"],
-                     x, y, color = SILVER)
-            x = x + 7
-        else:
-            c.text(ch, x, y, font = font, color = SILVER)
-            x = x + c.text_width(ch, font) + 1
+    c.text(name, x, y, font = font, color = SILVER)
 
 
 def medal(c, shape, silver = False):
@@ -1005,7 +994,7 @@ def draw_name(c, item):
             c.text(name, 91, 9 + i * 9, font = "5x7", color = SILVER)
         return
     name = normal(item["champ"])
-    for font in ["10x16_bold", "7x12", "6x8", "5x7"]:
+    for font in ["10x16_bold", "6x8", "5x7"]:
         if c.text_width(name, font) <= 91:
             champion_text(c, name, 91, 10, font)
             return
