@@ -12,10 +12,12 @@ Arsenal's own crest history:
 - Citing: https://www.arsenal.com/news/news-archive/the-arsenal-crest
 
 The original is a detailed line illustration; at this panel's pixel budget
-it was thresholded to pure black/white and reduced to 48x22 px
+it was thresholded to a single color and reduced to 48x22 px
 (majority-vote per cell, no anti-aliasing, no interpolation) so it draws as
 clean pixel art rather than a blurred photo — 48px wide is roughly the
-minimum where the wheel spokes and barrel stay legible. The modern shield
+minimum where the wheel spokes and barrel stay legible. The lit pixels are
+Arsenal red (#EF0107) on a transparent ground, so the mark stands directly
+on the app's black panel. The modern shield
 crest (with the "Arsenal" wordmark, gold trim, and three colored panels)
 was tried first and does not survive reduction to panel resolution — it
 becomes an unreadable smear even at 24x24px — which is why this simpler,

@@ -12,16 +12,16 @@ entry: app.star
 width: 192
 height: 32
 
-# LIVE wants a fresher read than the others; 5 min balances that against
-# hammering the shared free API key (the other pages cache far longer via
-# their own http.get ttl_seconds).
+# MATCH's live score wants a fresher read than the others; 5 min balances
+# that against hammering the shared free API key (the other lookups cache
+# far longer via their own http.get ttl_seconds).
 refresh: 300
 
-# LIVE -> NEXT -> RESULT -> TABLE, rotating.
-pages: [live, next, result, table]
+# MATCH (live score, else next fixture) -> RESULT -> TABLE, rotating.
+pages: [match, result, table]
 
 # Arsenal's real 1921-22 club crest (public domain — see README.md),
-# pixel-thresholded to 48x22 for the badge zone.
+# pixel-thresholded to 48x22 in Arsenal red for the mark.
 assets:
   - cannon.png
 
