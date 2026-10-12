@@ -1,6 +1,6 @@
 gdn: 1
 id: aurora-conditions
-version: 1
+version: 2
 name: Aurora Conditions
 author: Ben
 description: Live solar wind from NOAA - Bz, Bt, speed and density, colour coded with trend arrows - plus tonight's Kp forecast at 8pm, 11pm, 2am and 5am against the Kp your own ZIP actually needs, and the one answer that matters - whether the storm reaches you and the moon and cloud let you see it.

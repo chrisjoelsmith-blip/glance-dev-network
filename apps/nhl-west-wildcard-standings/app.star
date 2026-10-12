@@ -534,12 +534,22 @@ def draw_three_rows(c, teams):
 def draw_division_title(c, conference, index):
     c.fill("black")
 
-    draw_conference_shield(
-        c,
-        conference,
-        14,
-        4,
-    )
+    if conference["abbrev"] == "E":
+        c.image(
+            "eastern_logo.png",
+            10,
+            0,
+            w=32,
+            h=32,
+        )
+    else:
+        c.image(
+            "western_logo.png",
+            10,
+            0,
+            w=32,
+            h=32,
+        )
 
     c.rect(52, 1, 191, 14, fill=conference["mid"])
     c.rect(52, 15, 191, 16, fill=conference["edge"])
@@ -577,11 +587,12 @@ def conference(c, ctx):
     c.hline(0, 29, 192, conf["mid"])
     c.rect(0, 30, 191, 31, fill=conf["band"])
 
-    c.sprite(
-        NHL_SHIELD,
-        11,
-        4,
-        legend=NHL_LEGEND,
+    c.image(
+        "nhl_logo.png",
+        8,
+        0,
+        w=32,
+        h=32,
     )
 
     # 'WESTERN' / 'EASTERN' are 82px in 11x14_bold: x 55-136, clear of both
@@ -604,11 +615,21 @@ def conference(c, ctx):
         align="center",
     )
 
-    draw_conference_shield(
-        c,
-        conf,
-        159,
-        4,
+    if conf["abbrev"] == "E":
+        c.image(
+        "eastern_logo.png",
+        153,
+        0,
+        w=32,
+        h=32,
+    )
+    else:
+        c.image(
+        "western_logo.png",
+        153,
+        0,
+        w=32,
+        h=32,
     )
 
 
@@ -643,12 +664,22 @@ def wildcard_title(c, ctx):
 
     c.fill("black")
 
-    draw_conference_shield(
-        c,
-        conf,
-        20,
-        4,
-    )
+    if conf["abbrev"] == "E":
+        c.image(
+            "eastern_logo.png",
+            16,
+            0,
+            w=32,
+            h=32,
+        )
+    else:
+        c.image(
+            "western_logo.png",
+            16,
+            0,
+            w=32,
+            h=32,
+        )
 
     c.rect(64, 0, 191, 14, fill=conf["mid"])
     c.rect(64, 15, 191, 16, fill=conf["edge"])
@@ -715,7 +746,21 @@ def wildcard(c, ctx):
 
 
 def hunt(c, ctx):
-    draw_three_rows(
-        c,
-        get_hunt(get_nhl_standings(), get_conference(ctx)),
-    )
+    teams = get_hunt(get_nhl_standings(), get_conference(ctx))
+    c.fill("black")
+    draw_header(c)
+
+    for i in range(3):
+        team = None
+        if i < len(teams):
+            team = teams[i]
+
+        draw_team_row(
+            c,
+            team,
+            i + 3,
+            8 + i * 8,
+        )
+
+        if i < 2:
+            c.hline(10, 15 + i * 8, 181, "#6E6E6E")

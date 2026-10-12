@@ -1,0 +1,29 @@
+id: tempest-wx-graphic
+name: Tempest WX Graphic
+author: cfdmb
+category: Weather
+description: Your own WeatherFlow Tempest station as full-bleed graphics - a live sky scene that follows the time of day and the weather, real highs and lows, a 24-hour temperature curve, an hourly forecast, NWS-style forecast periods (this afternoon, tonight, tomorrow...), a wind rose, the sun and moon, and a rain page that turns into a lightning strike map during storms. NWS warnings take over the display.
+width: 192
+height: 32
+refresh: 300
+pages:
+  - now
+  - air
+  - wind
+  - rain
+  - today
+  - hourly
+  - forecast
+  - sky
+inputs:
+  - key: token
+    type: string
+    app_input_type: api-key
+    label: Tempest API token (tempestwx.com > Settings > Data Authorizations)
+  - key: units
+    type: string
+    app_input_type: dropdown
+    label: Units
+    choices: [Imperial, Metric]
+    default: Imperial
+    help: Imperial shows F, mph, inches and miles; Metric shows C, km/h, mm, hPa and km.

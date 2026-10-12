@@ -436,37 +436,42 @@ def rows_of(resp):
     return j
 
 
-WINDOW_BYTES = 420000
 SCAN_CAP = 1400                # records walked before giving up on the window
 TREND_WINDOW = 10800           # three hours, the span the arrow reads
 
 
 def fetch_window(url):
-    # Accept-Encoding matters as much as the Range here. The host fetches with
-    # a library that asks for gzip by default, and NOAA drops the range when
-    # it compresses -- which quietly returns the whole 2.67 MB file and a body
-    # truncated at the host's cap. Asking for identity gets a real 206.
-    r = http.get(url, headers = {"Range": "bytes=0-" + str(WINDOW_BYTES),
-                                 "Accept-Encoding": "identity"},
-                 ttl_seconds = 540)
+    # Let NOAA compress. The old Range + "Accept-Encoding: identity" pair
+    # turned compression off to keep the byte range honoured, and that put
+    # 420,001 bytes of raw JSON on the wire per feed -- 840 KB a render.
+    # Measured against the live CloudFront edge, gzipped and whole:
+    #     mag   420,001 -> 153,742     wind  420,001 -> 99,594
+    # so the entire file now costs a third of what one slice used to.
+    # That matters because the host fetches with requests, whose timeout
+    # measures the gap BETWEEN bytes, not the total transfer -- a slow but
+    # steady link never trips REQUEST_TIMEOUT, it just makes the render take
+    # twenty seconds, and the panel gives up waiting and holds its last frame.
+    # The body cap truncates the larger feed mid-array, which is why the
+    # salvage parser below stays; it still yields far more records than the
+    # three-hour trend window needs.
+    r = http.get(url, ttl_seconds = 540)
     if r["status_code"] != 200 and r["status_code"] != 206:
         return None
     if r["json"] != None:
-        return r["json"]            # short enough to have parsed cleanly
+        return r["json"]            # arrived whole and parsed cleanly
     body = r["body"]
     if body == None:
         return None
-    t = str(body)
-    if len(t) > WINDOW_BYTES:
-        t = t[:WINDOW_BYTES]
-    parts = t.split("},")
+    parts = str(body).split("},")
     if len(parts) < 2:
         return None
     return parts
 
 
-# Records arrive either as dicts (clean JSON) or as raw text chunks (sliced
-# array). These three read both, so nothing downstream has to care which.
+# Records arrive either as dicts (the mag feed fits under the body cap and
+# parses whole) or as raw text chunks (the wind feed is larger, so it comes
+# back truncated and gets salvaged). These three read both, so nothing
+# downstream has to care which.
 
 def rec_num(rec, key):
     if type(rec) == "dict":
